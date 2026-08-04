@@ -13,44 +13,63 @@ export default async function handler(req) {
     const parStr = (par || []).map((p, i) => `B${i+1}=Par${p}`).join(', ')
 
     const prompt = [
-      'Voce e um especialista em leitura de cartoees de golfe. Analise esta imagem.',
+      'Voce e um especialista em leitura de cartoees de golfe brasileiro. Analise esta imagem com muito cuidado.',
       '',
-      'JOGADORES (na ordem em que aparecem no cartao):',
+      'JOGADORES esperados (na ordem em que aparecem no cartao):',
       playerList,
       '',
       'PAR de cada buraco: ' + (parStr || 'nao informado'),
-      'INDICE STROKE dos buracos: ' + siStr,
+      'INDICE STROKE: ' + siStr,
       '',
-      'REGRAS DE LEITURA - siga rigorosamente:',
-      '1. Leia APENAS os scores brutos (gross) por buraco - numeros entre 1 e 12',
-      '2. IGNORE: colunas de somatorio, totais de volta, handicap, net, diferencas (+/-), press',
-      '3. Somatórios sao faceis de identificar: sao numeros altos (30-50 para 9 buracos) em colunas destacadas',
-      '4. Para buracos com caligrafia duvidosa, use o par do buraco como referencia:',
-      '   - Em um Par 3: score provavel entre 2 e 6 (nunca 8 ou 9)',
-      '   - Em um Par 4: score provavel entre 3 e 7',
-      '   - Em um Par 5: score provavel entre 4 e 8',
-      '   - Se um numero parece ser 3 ou 8 em um Par 3, escolha 3',
-      '   - Se um numero parece ser 4 ou 9 em um Par 4, escolha 4 ou 5',
-      '5. Use o handicap do jogador como referencia adicional:',
-      '   - Jogador HCP 0-9: scores tipicamente proximo ao par',
-      '   - Jogador HCP 10-18: scores tipicamente par+1 ou par+2',
-      '   - Jogador HCP 19+: scores tipicamente par+2 ou par+3',
-      '6. Nunca deixe de retornar um resultado - sempre retorne sua melhor estimativa',
-      '7. Buraco realmente ilegivel (impossivel estimar): use null',
-      '8. Nunca copie score de buraco adjacente para preencher vazio',
-      '9. Cada buraco e lido de forma completamente independente',
+      '=== VERIFICACAO INICIAL ===',
+      'Antes de ler os scores, verifique:',
+      'A) O cartao esta completo? Sao visiveis todos os 18 buracos (ou pelo menos os jogados)?',
+      '   Se a foto esta cortada e faltam buracos, indique em "notes" quais buracos nao estao visiveis.',
+      'B) O cartao e dobrado ao meio? Muitos cartoees brasileiros mostram Front 9 na face esquerda e Back 9 na face direita.',
       '',
-      'IMPORTANTE: mesmo que a imagem seja parcialmente borrada ou inclinada,',
-      'faca o melhor esforco possivel e retorne um resultado. Nunca retorne erro.',
+      '=== ESTRUTURA DO CARTAO BRASILEIRO ===',
+      'Cartoees brasileiros frequentemente tem:',
+      '- Uma coluna com a INICIAL DO JOGADOR antes dos scores do Back 9 (ex: "C" para Cassiano, "M" para Moro)',
+      '- Essa coluna de inicial NAO E UM SCORE - deve ser completamente ignorada',
+      '- Colunas de SOMATORIO apos o buraco 9 e apos o buraco 18 (numeros altos: 35-50 para F9, 60-100 para total)',
+      '- Uma linha abaixo dos scores com DIFERENCAS DE HANDICAP (numeros com +/- ou pequenos 0,1,2)',
+      '- Colunas HD e NET no final - ignorar',
+      '',
+      '=== REGRAS DE LEITURA ===',
+      '1. Leia APENAS os 18 scores brutos (gross) por jogador, um por buraco',
+      '2. Scores validos por buraco: entre 1 e 12',
+      '3. Se encontrar uma LETRA (A, B, C, M, K, etc) entre colunas numericas: IGNORE - e inicial do jogador',
+      '4. Se encontrar numero muito alto (>15): e somatorio - IGNORE',
+      '5. Se encontrar numero com sinal (+/-): e diferenca de handicap - IGNORE',
+      '6. Use o par do buraco como referencia para numeros duvidosos:',
+      '   - Par 3: score esperado entre 2 e 6. Se duvida entre 3 e 8, escolha 3',
+      '   - Par 4: score esperado entre 3 e 7. Se duvida entre 4 e 9, escolha 4 ou 5',
+      '   - Par 5: score esperado entre 4 e 8. Se duvida entre 5 e 8, ambos sao possiveis',
+      '7. Use o handicap do jogador como referencia:',
+      '   - HCP 0-9: scores tipicamente par ou par+1',
+      '   - HCP 10-18: scores tipicamente par+1 ou par+2',
+      '   - HCP 19+: scores tipicamente par+2 ou par+3',
+      '8. Buraco NAO JOGADO ou realmente ilegivel: use null',
+      '9. NUNCA copie score de buraco adjacente para preencher vazio',
+      '10. NUNCA desloque scores - se a coluna 10 esta vazia, B10=null e B11 continua sendo B11',
+      '11. Sempre retorne um resultado, mesmo parcial - nunca retorne erro',
+      '',
+      '=== CONTAGEM CUIDADOSA ===',
+      'Conte as colunas de score com cuidado:',
+      '- Front 9: exatamente 9 colunas numericas (ignorando colunas de letra)',
+      '- Back 9: exatamente 9 colunas numericas (ignorando coluna de inicial se existir)',
+      '- Total: 18 valores por jogador',
       '',
       'Retorne APENAS este JSON:',
       '{',
       '  "scores": [',
       '    [s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18],',
-      '    ... um array de 18 valores por jogador ...',
+      '    ... um array de 18 valores por jogador na ordem listada ...',
       '  ],',
       '  "confidence": "high" ou "medium" ou "low",',
-      '  "notes": "observacoes sobre leitura"',
+      '  "card_complete": true ou false,',
+      '  "missing_holes": "descricao de buracos nao visiveis se houver",',
+      '  "notes": "observacoes sobre leitura, iniciais encontradas, etc"',
       '}'
     ].join('\n')
 
@@ -89,14 +108,12 @@ export default async function handler(req) {
       },
     })
   } catch (e) {
-    // Return a graceful fallback instead of error
-    const { players } = await req.json().catch(() => ({ players: [] }))
-    const fallback = {
-      scores: players.map(() => Array(18).fill(null)),
+    return new Response(JSON.stringify({
+      scores: [],
       confidence: 'low',
-      notes: 'Nao foi possivel ler o cartao automaticamente. Por favor, lance os scores manualmente.'
-    }
-    return new Response(JSON.stringify(fallback), {
+      card_complete: false,
+      notes: 'Nao foi possivel processar a imagem. Verifique se o cartao esta completamente visivel na foto.'
+    }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     })
   }

@@ -7,7 +7,7 @@ import {
   calcSkins, calcStableford, cmp,
 } from '../lib/golf'
 
-// ── Photo capture via Claude Vision ──────────────────────────────────────────
+// ── Photo capture via IA ───────────────────────────────────────────────────────
 
 async function readCardWithVision(imageBase64, players, si) {
   const response = await fetch('/api/read-card', {
@@ -660,11 +660,24 @@ function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
 
   return (
     <>
+      {photoResult.card_complete === false && (
+        <div style={{
+          background: 'rgba(224,85,85,0.15)', border: '1px solid var(--red)',
+          borderRadius: 'var(--r)', padding: '10px 14px', marginBottom: 10,
+          fontSize: 13, color: 'var(--red)',
+        }}>
+          ⚠️ <strong>Cartão possivelmente incompleto</strong>
+          {photoResult.missing_holes && <div style={{marginTop:4, fontSize:12}}>{photoResult.missing_holes}</div>}
+          <div style={{marginTop:4, fontSize:12, color:'var(--muted)'}}>
+            Tire uma nova foto garantindo que todos os buracos estejam visíveis, ou corrija manualmente abaixo.
+          </div>
+        </div>
+      )}
       <div className="card">
         <h2>Confirme e corrija os scores</h2>
         <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
           Confiança da leitura: <strong>{confLbl}</strong>
-          {photoResult.notes && <><br/><em>{photoResult.notes}</em></>}
+          {photoResult.notes && <><br/><em style={{fontSize:11}}>{photoResult.notes}</em></>}
         </p>
         <p style={{ fontSize: 12, color: 'var(--gold)', marginBottom: 12 }}>
           Toque em qualquer número para corrigir. Campos em branco = buraco não jogado.
