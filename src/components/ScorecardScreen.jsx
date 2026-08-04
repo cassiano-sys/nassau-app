@@ -8,27 +8,15 @@ import {
 } from '../lib/golf'
 
 // ── Photo capture via Claude Vision ──────────────────────────────────────────
-const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY
 
 async function readCardWithVision(imageBase64, players, si) {
-  const playerList = players.map((p, i) => `${i + 1}. ${p.name} (HCP ${p.handicap})`).join('\n')
-  const siStr = si.map((s, i) => `B${i + 1}=SI${s}`).join(', ')
-
-  const prompt = `Este é um cartão de golfe. Os jogadores são:
-${playerList}
-
-O Índice Stroke (SI) dos buracos é: ${siStr}
-
-Por favor, leia os scores BRUTOS (gross) de cada jogador em cada buraco.
-Retorne APENAS um JSON válido, sem texto adicional, no formato:
-{
-  "scores": [
-    [score_b1, score_b2, ..., score_b18],  // Jogador 1
-    [score_b1, score_b2, ..., score_b18],  // Jogador 2
-    ...
-  ],
-  "confidence": "high" | "medium" | "low",
-  "notes": "qualquer observação sobre leitura difícil"
+  const response = await fetch('/api/read-card', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageBase64, players, si }),
+  })
+  if (!response.ok) throw new Error('Erro na leitura')
+  return await response.json()
 }
 
 Use null para buracos ilegíveis ou não jogados. Retorne apenas o JSON.`
@@ -177,9 +165,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     setProcessing(false)
   }
 
-  const applyPhotoScores = () => {
-    if (!photoResult?.scores) return
-    setScores(photoResult.scores.map(row =>
+  const applyPhotoScores = (editedScores) => {
+    const src = editedScores || photoResult?.scores
+    if (!src) return
+    setScores(src.map(row =>
       row.map(v => v === null ? null : Number(v))
     ))
     setPhotoMode(false); setPhotoImg(null); setPhotoB64(null); setPhotoResult(null)
@@ -275,45 +264,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             )}
           </>
         ) : (
-          <>
-            <div className="card">
-              <h2>Scores lidos — confirme</h2>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-                Confiança: <strong style={{ color: photoResult.confidence === 'high' ? 'var(--green2)' : 'var(--gold)' }}>
-                  {photoResult.confidence === 'high' ? 'Alta' : photoResult.confidence === 'medium' ? 'Média' : 'Baixa'}
-                </strong>
-                {photoResult.notes && ` · ${photoResult.notes}`}
-              </p>
-              <div className="sc-wrap">
-                <table className="sct">
-                  <thead>
-                    <tr>
-                      <th>Jogador</th>
-                      {HOLES.map(h => <th key={h}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {players.map((p, pi) => (
-                      <tr key={pi}>
-                        <td className="pnc">{p.name}</td>
-                        {(photoResult.scores[pi] || []).map((s, hi) => (
-                          <td key={hi} className={hi >= 9 ? 'bk' : ''}>
-                            {s ?? '–'}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <button className="btn-primary" onClick={applyPhotoScores} style={{ marginBottom: 10 }}>
-              ✓ Confirmar e usar esses scores
-            </button>
-            <button className="btn-secondary" onClick={() => { setPhotoResult(null); setPhotoImg(null) }}>
-              Tentar novamente
-            </button>
-          </>
+          <PhotoConfirm
+            players={players}
+            photoResult={photoResult}
+            par={par}
+            onConfirm={applyPhotoScores}
+            onRetry={() => { setPhotoResult(null); setPhotoImg(null) }}
+          />
         )}
       </div>
     </div>
@@ -614,6 +571,10 @@ function MoneyTag({ val }) {
 }
 
 function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
+  const parF9  = par.slice(0,9).reduce((a,b)=>a+b,0)
+  const parB9  = par.slice(9).reduce((a,b)=>a+b,0)
+  const parTot = parF9 + parB9
+
   return (
     <div className="card">
       <h2>Scorecard</h2>
@@ -623,13 +584,17 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
             <tr>
               <th>Jogador</th>
               {HOLES.map(h => <th key={h} className={h > 9 ? 'bk' : ''}>{h}</th>)}
+              <th className="tot-h">F9</th>
+              <th className="tot-h">B9</th>
               <th className="tot-h">Gross</th>
               <th className="tot-h">Net</th>
             </tr>
             <tr>
               <th className="par-r">Par</th>
               {par.map((p, i) => <th key={i} className={`par-r ${i >= 9 ? 'bk' : ''}`}>{p}</th>)}
-              <th className="par-r">{par.reduce((a,b)=>a+b,0)}</th>
+              <th className="par-r">{parF9}</th>
+              <th className="par-r">{parB9}</th>
+              <th className="par-r">{parTot}</th>
               <th className="si-r">–</th>
             </tr>
             <tr>
@@ -637,20 +602,27 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
               {si.map((s, i) => <th key={i} className={`si-r ${i >= 9 ? 'bk' : ''}`}>{s}</th>)}
               <th className="si-r">–</th>
               <th className="si-r">–</th>
+              <th className="si-r">–</th>
+              <th className="si-r">–</th>
             </tr>
           </thead>
           <tbody>
             {players.map((p, pi) => {
-              let totalGross = 0, totalNet = 0
+              let f9Gross=0, b9Gross=0, f9Net=0, b9Net=0
+              let f9Count=0, b9Count=0
               HOLES.forEach((_, i) => {
                 const g = scores[pi][i]
                 if (g !== null) {
-                  totalGross += g
-                  totalNet += g - getStrokesGlobal(p.handicap, lowestHcp, si, i)
+                  const st = getStrokesGlobal(p.handicap, lowestHcp, si, i)
+                  const net = g - st
+                  if (i < 9)  { f9Gross += g; f9Net += net; f9Count++ }
+                  else        { b9Gross += g; b9Net += net; b9Count++ }
                 }
               })
+              const totalGross = f9Gross + b9Gross
+              const totalNet   = f9Net   + b9Net
               return (
-                <tr key={pi} className={teamA.includes(pi) ? '' : ''}>
+                <tr key={pi}>
                   <td className="pnc" style={{ color: teamA.includes(pi) ? '#7ab5f0' : '#f07a7a' }}>
                     {p.name}<br/><small style={{ color: 'var(--muted)' }}>HCP {p.handicap}</small>
                   </td>
@@ -659,7 +631,7 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
                     const st = getStrokesGlobal(p.handicap, lowestHcp, si, i)
                     const net = g !== null ? g - st : null
                     return (
-                      <td key={h} className={`${h > 9 ? 'bk' : ''}`}>
+                      <td key={h} className={h > 9 ? 'bk' : ''}>
                         {g !== null ? <>
                           <span className="gc">{g}</span>
                           <span className="nc">{net}</span>
@@ -667,8 +639,20 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
                       </td>
                     )
                   })}
-                  <td className="tot-c"><span className="gc">{totalGross || '–'}</span></td>
-                  <td className="tot-c"><span className="gc" style={{ color: 'var(--green2)' }}>{totalNet || '–'}</span></td>
+                  <td className="tot-c">
+                    <span className="gc">{f9Count ? f9Gross : '–'}</span>
+                    <span className="nc">{f9Count ? f9Net : ''}</span>
+                  </td>
+                  <td className="tot-c">
+                    <span className="gc">{b9Count ? b9Gross : '–'}</span>
+                    <span className="nc">{b9Count ? b9Net : ''}</span>
+                  </td>
+                  <td className="tot-c">
+                    <span className="gc">{(f9Count+b9Count) ? totalGross : '–'}</span>
+                  </td>
+                  <td className="tot-c">
+                    <span className="gc" style={{ color: 'var(--green2)' }}>{(f9Count+b9Count) ? totalNet : '–'}</span>
+                  </td>
                 </tr>
               )
             })}
@@ -676,6 +660,94 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
         </table>
       </div>
     </div>
+  )
+}
+
+// ── PhotoConfirm — editable confirmation after card reading ───────────────────
+function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
+  const [editScores, setEditScores] = useState(
+    () => (photoResult.scores || []).map(row =>
+      Array.from({ length: 18 }, (_, i) => row[i] ?? null)
+    )
+  )
+
+  const updScore = (pi, hi, val) => {
+    setEditScores(prev => {
+      const next = prev.map(r => [...r])
+      next[pi][hi] = val === '' ? null : Number(val)
+      return next
+    })
+  }
+
+  const confLbl = photoResult.confidence === 'high' ? '🟢 Alta' :
+                  photoResult.confidence === 'medium' ? '🟡 Média' : '🔴 Baixa'
+
+  return (
+    <>
+      <div className="card">
+        <h2>Confirme e corrija os scores</h2>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+          Confiança da leitura: <strong>{confLbl}</strong>
+          {photoResult.notes && <><br/><em>{photoResult.notes}</em></>}
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--gold)', marginBottom: 12 }}>
+          Toque em qualquer número para corrigir. Campos em branco = buraco não jogado.
+        </p>
+
+        {players.map((p, pi) => (
+          <div key={pi} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: pi % 2 === 0 ? '#7ab5f0' : '#f07a7a', marginBottom: 6 }}>
+              {p.name} — HCP {p.handicap}
+            </div>
+            <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted)' }}>Front 9</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 3, marginBottom: 6 }}>
+              {Array.from({length:9},(_,hi) => (
+                <div key={hi} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:2 }}>
+                  <div style={{fontSize:9,color:'var(--muted)'}}>B{hi+1}<br/>p{par[hi]}</div>
+                  <input type="number" min="1" max="15"
+                    value={editScores[pi]?.[hi] ?? ''}
+                    onChange={e => updScore(pi, hi, e.target.value)}
+                    placeholder="–"
+                    style={{
+                      width:'100%', height:32, textAlign:'center', fontSize:13, fontWeight:700,
+                      background: editScores[pi]?.[hi] !== null ? 'rgba(201,168,76,0.1)' : 'rgba(0,0,0,0.3)',
+                      border: `1px solid ${editScores[pi]?.[hi] !== null ? 'var(--gold)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius:5, color:'var(--cream)', fontFamily:"'DM Sans',sans-serif",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted)' }}>Back 9</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 3 }}>
+              {Array.from({length:9},(_,hi) => (
+                <div key={hi} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:2 }}>
+                  <div style={{fontSize:9,color:'var(--muted)'}}>B{hi+10}<br/>p{par[hi+9]}</div>
+                  <input type="number" min="1" max="15"
+                    value={editScores[pi]?.[hi+9] ?? ''}
+                    onChange={e => updScore(pi, hi+9, e.target.value)}
+                    placeholder="–"
+                    style={{
+                      width:'100%', height:32, textAlign:'center', fontSize:13, fontWeight:700,
+                      background: editScores[pi]?.[hi+9] !== null ? 'rgba(201,168,76,0.1)' : 'rgba(0,0,0,0.3)',
+                      border: `1px solid ${editScores[pi]?.[hi+9] !== null ? 'var(--gold)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius:5, color:'var(--cream)', fontFamily:"'DM Sans',sans-serif",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn-primary" onClick={() => onConfirm(editScores)} style={{ marginBottom: 10 }}>
+        ✓ Confirmar scores
+      </button>
+      <button className="btn-secondary" onClick={onRetry}>
+        Tentar nova foto
+      </button>
+    </>
   )
 }
 
