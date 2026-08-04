@@ -13,7 +13,7 @@ async function readCardWithVision(imageBase64, players, si) {
   const response = await fetch('/api/read-card', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageBase64, players, si }),
+    body: JSON.stringify({ imageBase64, players, si, par }),
   })
   if (!response.ok) throw new Error('Erro na leitura')
   return await response.json()
@@ -130,7 +130,12 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       const result = await readCardWithVision(photoB64, players, si)
       setPhotoResult(result)
     } catch (e) {
-      setPhotoError('Erro ao ler o cartão. Tente uma foto mais nítida.')
+      // Even on error, show an empty editable table so user can fill manually
+      setPhotoResult({
+        scores: players.map(() => Array(18).fill(null)),
+        confidence: 'low',
+        notes: 'Leitura automática não foi possível. Preencha ou corrija os scores abaixo.'
+      })
     }
     setProcessing(false)
   }
@@ -195,7 +200,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             <div className="card">
               <h2>Fotografe o cartão</h2>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.7 }}>
-                Tire uma foto nítida do cartão de score. O Claude vai ler os scores de cada jogador automaticamente.
+                Tire uma foto do cartão de score. A IA vai ler os scores de cada jogador automaticamente — você poderá corrigir antes de confirmar.
               </p>
               <button className="photo-btn" onClick={() => fileRef.current?.click()}>
                 📷 Selecionar foto
@@ -219,12 +224,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             {processing ? (
               <div className="processing-msg">
                 <div style={{ fontSize: 32, marginBottom: 10 }}>🤖</div>
-                <p>Claude está lendo o cartão...</p>
+                <p>IA lendo o cartão...</p>
               </div>
             ) : (
               <>
-                {photoError && <p style={{ color: 'var(--red)', textAlign: 'center', marginBottom: 10, fontSize: 13 }}>{photoError}</p>}
-                <button className="btn-primary" onClick={processPhoto} style={{ marginBottom: 10 }}>
+                  <button className="btn-primary" onClick={processPhoto} style={{ marginBottom: 10 }}>
                   Ler scores automaticamente
                 </button>
                 <button className="btn-secondary" onClick={() => { setPhotoImg(null); setPhotoB64(null) }}>

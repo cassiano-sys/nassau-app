@@ -6,39 +6,51 @@ export default async function handler(req) {
   }
 
   try {
-    const { imageBase64, players, si } = await req.json()
+    const { imageBase64, players, si, par } = await req.json()
 
     const playerList = players.map((p, i) => `${i + 1}. ${p.name} (HCP ${p.handicap})`).join('\n')
     const siStr = si.map((s, i) => `B${i+1}=SI${s}`).join(', ')
+    const parStr = (par || []).map((p, i) => `B${i+1}=Par${p}`).join(', ')
 
     const prompt = [
-      'Voce e um especialista em leitura de cartoees de golfe. Analise esta imagem com cuidado.',
+      'Voce e um especialista em leitura de cartoees de golfe. Analise esta imagem.',
       '',
       'JOGADORES (na ordem em que aparecem no cartao):',
       playerList,
       '',
+      'PAR de cada buraco: ' + (parStr || 'nao informado'),
       'INDICE STROKE dos buracos: ' + siStr,
       '',
-      'INSTRUCOES IMPORTANTES:',
-      '1. O cartao tem 18 buracos: Front 9 (B1-B9) e Back 9 (B10-B18)',
-      '2. Cada jogador tem UMA linha de scores - sao os numeros BRUTOS (gross) por buraco',
-      '3. IGNORE totalmente: colunas de somatorio (aparecem apos B9 e apos B18), totais de volta, handicap, net, diferencas acumuladas, numeros de press',
-      '4. Somatorios sao numeros ALTOS tipicamente entre 30-50 para 9 buracos ou 60-100 para 18 - IGNORE',
-      '5. Scores validos por buraco estao tipicamente entre 2 e 12',
-      '6. Numeros com sinais (+ ou -) sao diferencas - IGNORE',
-      '7. Se um buraco estiver em branco, ilegivel ou sem score, use OBRIGATORIAMENTE null',
-      '8. NUNCA repita o score de um buraco anterior para preencher um buraco em branco',
-      '9. NUNCA interpole ou estime valores - null e a unica opcao para buracos sem score claro',
-      '10. Cada score deve ser lido INDEPENDENTEMENTE - um buraco nao influencia o outro',
+      'REGRAS DE LEITURA - siga rigorosamente:',
+      '1. Leia APENAS os scores brutos (gross) por buraco - numeros entre 1 e 12',
+      '2. IGNORE: colunas de somatorio, totais de volta, handicap, net, diferencas (+/-), press',
+      '3. Somatórios sao faceis de identificar: sao numeros altos (30-50 para 9 buracos) em colunas destacadas',
+      '4. Para buracos com caligrafia duvidosa, use o par do buraco como referencia:',
+      '   - Em um Par 3: score provavel entre 2 e 6 (nunca 8 ou 9)',
+      '   - Em um Par 4: score provavel entre 3 e 7',
+      '   - Em um Par 5: score provavel entre 4 e 8',
+      '   - Se um numero parece ser 3 ou 8 em um Par 3, escolha 3',
+      '   - Se um numero parece ser 4 ou 9 em um Par 4, escolha 4 ou 5',
+      '5. Use o handicap do jogador como referencia adicional:',
+      '   - Jogador HCP 0-9: scores tipicamente proximo ao par',
+      '   - Jogador HCP 10-18: scores tipicamente par+1 ou par+2',
+      '   - Jogador HCP 19+: scores tipicamente par+2 ou par+3',
+      '6. Nunca deixe de retornar um resultado - sempre retorne sua melhor estimativa',
+      '7. Buraco realmente ilegivel (impossivel estimar): use null',
+      '8. Nunca copie score de buraco adjacente para preencher vazio',
+      '9. Cada buraco e lido de forma completamente independente',
       '',
-      'Retorne APENAS este JSON, sem texto adicional:',
+      'IMPORTANTE: mesmo que a imagem seja parcialmente borrada ou inclinada,',
+      'faca o melhor esforco possivel e retorne um resultado. Nunca retorne erro.',
+      '',
+      'Retorne APENAS este JSON:',
       '{',
       '  "scores": [',
       '    [s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18],',
-      '    ... um array de 18 numeros por jogador ...',
+      '    ... um array de 18 valores por jogador ...',
       '  ],',
       '  "confidence": "high" ou "medium" ou "low",',
-      '  "notes": "descreva dificuldades de leitura"',
+      '  "notes": "observacoes sobre leitura"',
       '}'
     ].join('\n')
 
@@ -77,9 +89,15 @@ export default async function handler(req) {
       },
     })
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    // Return a graceful fallback instead of error
+    const { players } = await req.json().catch(() => ({ players: [] }))
+    const fallback = {
+      scores: players.map(() => Array(18).fill(null)),
+      confidence: 'low',
+      notes: 'Nao foi possivel ler o cartao automaticamente. Por favor, lance os scores manualmente.'
+    }
+    return new Response(JSON.stringify(fallback), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     })
   }
 }
