@@ -19,36 +19,6 @@ async function readCardWithVision(imageBase64, players, si) {
   return await response.json()
 }
 
-Use null para buracos ilegíveis ou não jogados. Retorne apenas o JSON.`
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-opus-4-5',
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 },
-          },
-          { type: 'text', text: prompt },
-        ],
-      }],
-    }),
-  })
-
-  const data = await response.json()
-  const text = data.content?.[0]?.text || ''
-  const clean = text.replace(/```json|```/g, '').trim()
-  return JSON.parse(clean)
-}
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ScorecardScreen({ config, onFinish, onBack, session }) {
