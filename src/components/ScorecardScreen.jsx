@@ -578,19 +578,20 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
           </thead>
           <tbody>
             {players.map((p, pi) => {
-              let f9Gross=0, b9Gross=0, f9Net=0, b9Net=0
+              let f9Gross=0, b9Gross=0
               let f9Count=0, b9Count=0
               HOLES.forEach((_, i) => {
                 const g = scores[pi][i]
                 if (g !== null) {
-                  const st = getStrokesGlobal(p.handicap, lowestHcp, si, i)
-                  const net = g - st
-                  if (i < 9)  { f9Gross += g; f9Net += net; f9Count++ }
-                  else        { b9Gross += g; b9Net += net; b9Count++ }
+                  if (i < 9)  { f9Gross += g; f9Count++ }
+                  else        { b9Gross += g; b9Count++ }
                 }
               })
               const totalGross = f9Gross + b9Gross
-              const totalNet   = f9Net   + b9Net
+              // Net medal = total gross - course handicap (not per-hole stroke distribution)
+              const totalNet   = (f9Count + b9Count) > 0 ? totalGross - p.handicap : 0
+              const f9Net      = f9Count > 0 ? f9Gross - Math.round(p.handicap * f9Count / (f9Count + b9Count)) : 0
+              const b9Net      = b9Count > 0 ? b9Gross - Math.round(p.handicap * b9Count / (f9Count + b9Count)) : 0
               return (
                 <tr key={pi}>
                   <td className="pnc" style={{ color: teamA.includes(pi) ? '#7ab5f0' : '#f07a7a' }}>
@@ -598,7 +599,8 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
                   </td>
                   {HOLES.map((h, i) => {
                     const g = scores[pi][i]
-                    const st = getStrokesGlobal(p.handicap, lowestHcp, si, i)
+                    // Per-hole medal net: strokes player receives vs scratch
+                    const st = getStrokesPair(0, p.handicap, si, i)
                     const net = g !== null ? g - st : null
                     return (
                       <td key={h} className={h > 9 ? 'bk' : ''}>

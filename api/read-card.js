@@ -11,23 +11,33 @@ export default async function handler(req) {
     const playerList = players.map((p, i) => `${i + 1}. ${p.name} (HCP ${p.handicap})`).join('\n')
     const siStr = si.map((s, i) => `B${i+1}=SI${s}`).join(', ')
 
-    const prompt = `Este é um cartão de golfe. Os jogadores são:
-${playerList}
-
-O Índice Stroke (SI) dos buracos é: ${siStr}
-
-Leia os scores BRUTOS (gross) de cada jogador em cada buraco.
-Retorne APENAS JSON válido, sem texto adicional:
-{
-  "scores": [
-    [score_b1, score_b2, ..., score_b18],
-    ...
-  ],
-  "confidence": "high" | "medium" | "low",
-  "notes": "observações sobre leitura difícil"
-}
-
-Use null para buracos ilegíveis ou não jogados. Retorne apenas o JSON.`
+    const prompt = [
+      'Voce e um especialista em leitura de cartoees de golfe. Analise esta imagem com cuidado.',
+      '',
+      'JOGADORES (na ordem em que aparecem no cartao):',
+      playerList,
+      '',
+      'INDICE STROKE dos buracos: ' + siStr,
+      '',
+      'INSTRUCOES IMPORTANTES:',
+      '1. O cartao tem 18 buracos: Front 9 (B1-B9) e Back 9 (B10-B18)',
+      '2. Cada jogador tem UMA linha de scores - sao os numeros BRUTOS (gross) por buraco',
+      '3. IGNORE totalmente: colunas de somatorio (aparecem apos B9 e apos B18), totais de volta, handicap, net, diferencas acumuladas, numeros de press',
+      '4. Somatorios sao numeros ALTOS tipicamente entre 30-50 para 9 buracos ou 60-100 para 18 - IGNORE',
+      '5. Scores validos por buraco estao tipicamente entre 2 e 12',
+      '6. Numeros com sinais (+ ou -) sao diferencas - IGNORE',
+      '7. Se um buraco estiver em branco ou ilegivel, use null',
+      '',
+      'Retorne APENAS este JSON, sem texto adicional:',
+      '{',
+      '  "scores": [',
+      '    [s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18],',
+      '    ... um array de 18 numeros por jogador ...',
+      '  ],',
+      '  "confidence": "high" ou "medium" ou "low",',
+      '  "notes": "descreva dificuldades de leitura"',
+      '}'
+    ].join('\n')
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -38,7 +48,7 @@ Use null para buracos ilegíveis ou não jogados. Retorne apenas o JSON.`
       },
       body: JSON.stringify({
         model: 'claude-opus-4-5',
-        max_tokens: 1000,
+        max_tokens: 1500,
         messages: [{
           role: 'user',
           content: [
@@ -58,7 +68,10 @@ Use null para buracos ilegíveis ou não jogados. Retorne apenas o JSON.`
     const result = JSON.parse(clean)
 
     return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     })
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {
