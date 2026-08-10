@@ -1,25 +1,27 @@
-export const config = { runtime: 'edge' }
+const https = require('https')
 
-export default async function handler(req) {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      }
-    })
-  }
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed')
 
   try {
-    const { imageBase64, players, si, par } = await req.json()
+    // Parse body manually if needed
+    let body = req.body
+    if (!body || typeof body === 'string') {
+      body = JSON.parse(body || '{}')
+    }
 
-    const playerList = players.map((p, i) => `${i + 1}. ${p.name} (HCP ${p.handicap})`).join('\n')
+    const { imageBase64, players, si, par } = body
+
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 is required' })
+    }
+
+    const playerList = (players || []).map((p, i) => `${i + 1}. ${p.name} (HCP ${p.handicap})`).join('\n')
     const parStr = (par || []).map((p, i) => `B${i+1}=Par${p}`).join(', ')
 
     const prompt = [
@@ -32,57 +34,72 @@ export default async function handler(req) {
       '',
       'REGRAS:',
       '1. Scores validos por buraco: numeros entre 1 e 12',
-      '2. IGNORE: somatórios (numeros >15), sinais +/-, letras isoladas (iniciais de jogadores), colunas HD e NET',
-      '3. Cartoes brasileiros tem coluna com INICIAL DO JOGADOR antes do Back 9 - ignore essa letra, nao e um score',
-      '4. Para numero duvidoso, use o par: Par3->score entre 2-6, Par4->entre 3-7, Par5->entre 4-8',
-      '5. Buraco em branco ou nao jogado: use null. NAO copie score do buraco anterior',
-      '6. Se foto cortada, retorne os buracos visiveis e null para os demais',
+      '2. IGNORE: somatórios (numeros >15), sinais +/-, letras isoladas (iniciais), colunas HD e NET',
+      '3. Cartoes brasileiros tem coluna com INICIAL DO JOGADOR antes do Back 9 - ignore essa letra',
+      '4. Para numero duvidoso use o par: Par3->2-6, Par4->3-7, Par5->4-8',
+      '5. Buraco em branco: use null. NAO copie score do buraco anterior',
       '',
       'Retorne APENAS JSON:',
-      '{',
-      '  "scores": [[s1..s18], [s1..s18], ...],',
-      '  "confidence": "high"|"medium"|"low",',
-      '  "card_complete": true|false,',
-      '  "notes": "observacoes"',
-      '}'
+      '{"scores":[[s1..s18],...],"confidence":"high|medium|low","card_complete":true/false,"notes":"obs"}'
     ].join('\n')
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.VITE_ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-            { type: 'text', text: prompt },
-          ],
-        }],
-      }),
+    const requestBody = JSON.stringify({
+      model: 'claude-opus-4-5',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+          { type: 'text', text: prompt }
+        ]
+      }]
     })
 
-    const data = await response.json()
-    const text = data.content?.[0]?.text || ''
-    const clean = text.replace(/```json|```/g, '').trim()
-    const result = JSON.parse(clean)
+    const result = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.VITE_ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Length': Buffer.byteLength(requestBody)
+        }
+      }
 
-    return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      const r = https.request(options, (response) => {
+        let data = ''
+        response.on('data', chunk => data += chunk)
+        response.on('end', () => {
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.error) {
+              reject(new Error(JSON.stringify(parsed.error)))
+              return
+            }
+            const text = parsed.content?.[0]?.text || ''
+            const clean = text.replace(/```json|```/g, '').trim()
+            resolve(JSON.parse(clean))
+          } catch(e) {
+            reject(new Error('Parse error: ' + data.slice(0, 300)))
+          }
+        })
+      })
+      r.on('error', reject)
+      r.write(requestBody)
+      r.end()
     })
+
+    return res.status(200).json(result)
+
   } catch (e) {
-    return new Response(JSON.stringify({
+    console.error('read-card error:', e.message)
+    return res.status(200).json({
       scores: [],
       confidence: 'low',
       card_complete: false,
-      notes: 'Erro ao processar. Verifique se o cartao esta completamente visivel.'
-    }), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      notes: 'Erro interno: ' + e.message.slice(0, 100)
     })
   }
 }
