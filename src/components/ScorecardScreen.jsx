@@ -9,13 +9,13 @@ import {
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
 
-async function readCardWithVision(imageBase64, players, si) {
+async function readCardWithVision(imageBase64, players, si, par) {
   const response = await fetch('/api/read-card', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ imageBase64, players, si, par }),
   })
-  if (!response.ok) throw new Error('Erro na leitura')
+  if (!response.ok) throw new Error('Erro na leitura: ' + response.status)
   return await response.json()
 }
 
@@ -127,7 +127,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     if (!photoB64) return
     setProcessing(true); setPhotoError('')
     try {
-      const result = await readCardWithVision(photoB64, players, si)
+      const result = await readCardWithVision(photoB64, players, si, par)
       setPhotoResult(result)
     } catch (e) {
       // Even on error, show an empty editable table so user can fill manually
