@@ -1,6 +1,6 @@
-const https = require('https')
+import https from 'https'
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -9,7 +9,6 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method not allowed')
 
   try {
-    // Parse body manually if needed
     let body = req.body
     if (!body || typeof body === 'string') {
       body = JSON.parse(body || '{}')
@@ -67,22 +66,18 @@ module.exports = async function handler(req, res) {
           'Content-Length': Buffer.byteLength(requestBody)
         }
       }
-
       const r = https.request(options, (response) => {
         let data = ''
         response.on('data', chunk => data += chunk)
         response.on('end', () => {
           try {
             const parsed = JSON.parse(data)
-            if (parsed.error) {
-              reject(new Error(JSON.stringify(parsed.error)))
-              return
-            }
+            if (parsed.error) return reject(new Error(JSON.stringify(parsed.error)))
             const text = parsed.content?.[0]?.text || ''
             const clean = text.replace(/```json|```/g, '').trim()
             resolve(JSON.parse(clean))
           } catch(e) {
-            reject(new Error('Parse error: ' + data.slice(0, 300)))
+            reject(new Error('Parse error: ' + data.slice(0, 200)))
           }
         })
       })
@@ -99,7 +94,7 @@ module.exports = async function handler(req, res) {
       scores: [],
       confidence: 'low',
       card_complete: false,
-      notes: 'Erro interno: ' + e.message.slice(0, 100)
+      notes: 'Erro: ' + e.message.slice(0, 100)
     })
   }
 }
