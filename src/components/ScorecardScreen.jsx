@@ -149,7 +149,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     setPhotoMode(false); setPhotoImg(null); setPhotoB64(null); setPhotoResult(null)
   }
 
-  // ── Save round ──
+ // ── Save round ──
   const saveRound = async () => {
     setSaving(true)
     try {
@@ -162,7 +162,6 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         bet_values:  betValues,
         num_players: numPlayers,
       }).select().single()
-
       if (rErr) throw rErr
 
       const playerRows = players.map((p, pi) => ({
@@ -174,18 +173,49 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         money_result:  playerMoney[pi],
         team:          teamA.includes(pi) ? 'A' : 'B',
       }))
-
       await supabase.from('round_players').insert(playerRows)
+
+      if (format === 'nassau' && indivMoney.length > 0) {
+        const matchupRows = pairs.map(([a, b], mi) => {
+          const m = indivMoney[mi]
+          return {
+            round_id: round.id,
+            type:     'individual',
+            player_a: players[a].name,
+            player_b: players[b].name,
+            result_a:  m.grand,
+            result_b: -m.grand,
+            front_a:   m.front.total,
+            back_a:    m.back.total,
+            total_a:   m.total18,
+          }
+        })
+        if (numPlayers === 4 && teamMoney) {
+          const tLA = teamA.map(i => players[i].name).join('/')
+          const tLB = teamB.map(i => players[i].name).join('/')
+          matchupRows.push({
+            round_id: round.id,
+            type:     'team',
+            player_a: tLA,
+            player_b: tLB,
+            team_a:   tLA,
+            team_b:   tLB,
+            result_a:  teamMoney.grand,
+            result_b: -teamMoney.grand,
+            front_a:   teamMoney.front.total,
+            back_a:    teamMoney.back.total,
+            total_a:   teamMoney.total18,
+          })
+        }
+        await supabase.from('round_matchups').insert(matchupRows)
+      }
+
       setSaved(true)
     } catch (e) {
       console.error('Save error:', e)
     }
     setSaving(false)
   }
-
-  const tLA = teamA.map(i => players[i].name).join('/')
-  const tLB = teamB.map(i => players[i].name).join('/')
-
   // ── Photo mode UI ──
   if (photoMode) return (
     <div className="screen">
