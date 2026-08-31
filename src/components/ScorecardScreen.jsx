@@ -417,22 +417,15 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             <StablefordResults players={players} result={stableResult} betUnit={betUnit}/>
           )}
 
-          {/* Final money */}
+          {/* Final money — números grandes */}
           <div className="card">
             <h2>Saldo Final</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="saldo-grid">
               {players.map((p, pi) => (
-                <div key={pi} style={{
-                  borderRadius: 12, padding: 14, textAlign: 'center',
-                  background: playerMoney[pi] > 0 ? 'rgba(45,106,45,0.2)' : playerMoney[pi] < 0 ? 'rgba(224,85,85,0.1)' : 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${playerMoney[pi] > 0 ? 'rgba(74,154,74,0.4)' : playerMoney[pi] < 0 ? 'rgba(224,85,85,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cream)', marginBottom: 4 }}>{p.name}</div>
-                  <div style={{
-                    fontSize: 22, fontWeight: 700, fontFamily: "'Playfair Display', serif",
-                    color: playerMoney[pi] > 0 ? '#55cc88' : playerMoney[pi] < 0 ? 'var(--red)' : 'var(--muted)',
-                  }}>
-                    {playerMoney[pi] > 0 ? '+' : ''}R$ {playerMoney[pi]}
+                <div key={pi} className={`saldo-cell ${playerMoney[pi] > 0 ? 'win' : playerMoney[pi] < 0 ? 'lose' : 'tie'}`}>
+                  <div className="saldo-name">{p.name}</div>
+                  <div className={`saldo-val ${playerMoney[pi] > 0 ? 'pos' : playerMoney[pi] < 0 ? 'neg' : 'neu'}`}>
+                    {playerMoney[pi] > 0 ? '+' : ''}R${playerMoney[pi]}
                   </div>
                 </div>
               ))}
