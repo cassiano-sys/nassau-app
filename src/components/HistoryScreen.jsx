@@ -22,7 +22,6 @@ export function RankingScreen({ onBack, session }) {
     setLoading(false)
   }
 
-  // Ranking geral — agrupa por primeiro nome normalizado
   const ranking = useMemo(() => {
     const map = {}
     ;(data || []).forEach(p => {
@@ -32,17 +31,17 @@ export function RankingScreen({ onBack, session }) {
       map[key].total += p.money_result || 0
       map[key].jogos.add(p.round_id)
       if (p.money_result > 0) map[key].wins++
-      // Prefere capitalização normal (Cassiano > CASSIANO)
-      const curr = map[key].name
-      const isProper = p.player_name === p.player_name[0].toUpperCase() + p.player_name.slice(1).toLowerCase()
-      if (isProper) map[key].name = p.player_name
+      // Prefere capitalização normal ex: Cassiano > CASSIANO
+      if (p.player_name && p.player_name.length > 1) {
+        const proper = p.player_name[0].toUpperCase() + p.player_name.slice(1).toLowerCase()
+        if (p.player_name === proper) map[key].name = p.player_name
+      }
     })
     return Object.values(map)
       .map(p => ({ ...p, jogos: p.jogos.size }))
       .sort((a, b) => b.total - a.total)
   }, [data])
 
-  // H2H — só cruza times diferentes (A vs B)
   const h2h = useMemo(() => {
     const byRound = {}
     ;(data || []).forEach(p => {
@@ -147,10 +146,10 @@ export function HistoryScreen({ onBack, session }) {
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState('all')
 
-  // Usa primeiro nome OU user_id para identificar o jogador logado
-  const fullName  = session?.user?.user_metadata?.full_name || ''
-  const firstName = firstNameLower(fullName)
-  const userId    = session?.user?.id
+  // APENAS primeiro nome — user_id não serve pois todos têm o mesmo
+  const firstName = firstNameLower(
+    session?.user?.user_metadata?.full_name || ''
+  )
 
   useEffect(() => { loadRounds() }, [filter])
 
@@ -173,18 +172,14 @@ export function HistoryScreen({ onBack, session }) {
     setLoading(false)
   }
 
-  // Verifica se um jogador é o usuário logado
-  // Usa user_id se disponível, senão usa primeiro nome
-  const isMe = (p) => {
-    if (p.user_id && userId && p.user_id === userId) return true
-    if (firstName && firstNameLower(p.player_name) === firstName) return true
-    return false
-  }
+  // Identifica jogador pelo PRIMEIRO NOME apenas
+  const isMe = (playerName) =>
+    firstName.length > 0 && firstNameLower(playerName) === firstName
 
   const myStats = useMemo(() => {
     let total = 0, wins = 0, jogos = 0
     rounds.forEach(r => {
-      const mine = r.round_players?.find(p => isMe(p))
+      const mine = r.round_players?.find(p => isMe(p.player_name))
       if (mine) {
         total += mine.money_result || 0
         jogos++
@@ -192,7 +187,7 @@ export function HistoryScreen({ onBack, session }) {
       }
     })
     return { total, wins, jogos }
-  }, [rounds, firstName, userId])
+  }, [rounds, firstName])
 
   const fmtDate = iso => new Date(iso).toLocaleDateString('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric'
@@ -234,7 +229,8 @@ export function HistoryScreen({ onBack, session }) {
 
         <div className="toggle-row" style={{ marginBottom: 14 }}>
           {[['all','Todas'],['month','Este mês'],['year','Este ano']].map(([v,l]) => (
-            <button key={v} className={`toggle-btn${filter===v?' active':''}`} onClick={() => setFilter(v)}>{l}</button>
+            <button key={v} className={`toggle-btn${filter===v?' active':''}`}
+              onClick={() => setFilter(v)}>{l}</button>
           ))}
         </div>
 
@@ -256,8 +252,8 @@ export function HistoryScreen({ onBack, session }) {
                 .map((p,i) => (
                   <div key={i} className="hist-player">
                     <span className="hist-pname" style={{
-                      fontWeight: isMe(p) ? 700 : 400,
-                      color: isMe(p) ? 'var(--gold)' : 'rgba(255,255,255,0.7)'
+                      fontWeight: isMe(p.player_name) ? 700 : 400,
+                      color: isMe(p.player_name) ? 'var(--gold)' : 'rgba(255,255,255,0.7)'
                     }}>
                       {p.player_name}
                       <small style={{ color:'var(--muted)', fontWeight:400 }}> HCP{p.handicap}</small>
@@ -276,10 +272,10 @@ export function HistoryScreen({ onBack, session }) {
 }
 
 export function ProfileScreen({ onBack, session, onSignOut }) {
-  const [name,    setName]    = useState(session?.user?.user_metadata?.full_name || '')
-  const [hcp,     setHcp]     = useState(session?.user?.user_metadata?.handicap  || 0)
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
+  const [name,   setName]   = useState(session?.user?.user_metadata?.full_name || '')
+  const [hcp,    setHcp]    = useState(session?.user?.user_metadata?.handicap  || 0)
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
@@ -309,12 +305,12 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
           <div style={{ fontSize:18, fontWeight:700, color:'var(--cream)' }}>{name || 'Jogador'}</div>
           <div style={{ fontSize:13, color:'var(--muted)', marginTop:4 }}>{email}</div>
         </div>
-
         <div className="card">
           <h2>Meus dados</h2>
           <div style={{ marginBottom:14 }}>
             <div className="field-label">Nome</div>
-            <input className="text-input" value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome completo"/>
+            <input className="text-input" value={name}
+              onChange={e => setName(e.target.value)} placeholder="Seu nome completo"/>
           </div>
           <div style={{ marginBottom:14 }}>
             <div className="field-label">Handicap de jogo</div>
@@ -329,18 +325,17 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
             </button>
           )}
         </div>
-
         <div className="card">
           <h2>Conta</h2>
           <div style={{ fontSize:13, color:'var(--muted)', marginBottom:14 }}>
             Conectado com: <strong style={{ color:'var(--cream)' }}>{email}</strong>
           </div>
-          <button className="btn-danger" style={{ width:'100%', padding:12, borderRadius:'var(--r)' }}
+          <button className="btn-danger"
+            style={{ width:'100%', padding:12, borderRadius:'var(--r)' }}
             onClick={handleSignOut}>
             Sair da conta
           </button>
         </div>
-
         <div className="card" style={{ borderColor:'rgba(201,168,76,0.2)' }}>
           <h2>Nassau App</h2>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.8 }}>
