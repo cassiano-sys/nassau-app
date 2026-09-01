@@ -50,9 +50,19 @@ export default function PresentationScreen({ onBack }) {
       </div>
 
       {/* Course info */}
-      <div className="presentation-course">{course?.name || 'Nassau'}</div>
-      <div className="presentation-date" style={{ marginBottom: 32 }}>
-        {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+      <div style={{
+        fontSize: 13, color: 'var(--muted2)', letterSpacing: '3px',
+        textTransform: 'uppercase', textAlign: 'center', marginBottom: 4,
+        fontWeight: 500,
+      }}>
+        {course?.name || 'Nassau'}
+      </div>
+      <div style={{
+        fontSize: 12, color: 'var(--muted)', letterSpacing: '2px',
+        textTransform: 'uppercase', textAlign: 'center', marginBottom: 36,
+        opacity: 0.7,
+      }}>
+        {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}
       </div>
 
       <div className="presentation-divider"/>
@@ -64,8 +74,18 @@ export default function PresentationScreen({ onBack }) {
         transition: 'all 0.4s ease',
         textAlign: 'center',
       }}>
-        <div className="presentation-name">{current_player?.name}</div>
-        <div className={`presentation-amount ${current_player?.money > 0 ? 'pos' : current_player?.money < 0 ? 'neg' : 'neu'}`}>
+        <div style={{
+          fontFamily: 'var(--serif)', fontSize: 36, fontWeight: 600,
+          color: 'var(--cream)', textAlign: 'center',
+          letterSpacing: '5px', textTransform: 'uppercase', marginBottom: 8,
+        }}>
+          {current_player?.name}
+        </div>
+        <div style={{
+          fontFamily: 'var(--serif)', fontSize: 80, fontWeight: 700,
+          textAlign: 'center', lineHeight: 1,
+          color: current_player?.money > 0 ? 'var(--green)' : current_player?.money < 0 ? 'var(--red)' : 'var(--muted2)',
+        }}>
           {fmtMoney(current_player?.money || 0)}
         </div>
       </div>
