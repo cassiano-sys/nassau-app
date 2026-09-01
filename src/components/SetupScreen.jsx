@@ -1,35 +1,46 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { COURSES } from '../lib/golf'
 
 const FORMATS = [
-  { id: 'nassau', label: 'Nassau', icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
-  { id: 'skins',  label: 'Skins',  icon: '💰', desc: 'Cada buraco vale 1 skin. Empates acumulam.' },
-  { id: 'stableford', label: 'Stableford', icon: '📊', desc: 'Pontos por buraco (birdie=3, par=2, bogey=1)' },
+  { id: 'nassau',     label: 'Nassau',     icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
+  { id: 'skins',     label: 'Skins',      icon: '💰', desc: 'Cada buraco vale 1 skin. Empates acumulam.' },
+  { id: 'stableford',label: 'Stableford', icon: '📊', desc: 'Pontos por buraco (birdie=3, par=2, bogey=1)' },
 ]
 
 export default function SetupScreen({ onStart, onBack, session }) {
-  const [format, setFormat]       = useState('nassau')
+  const [format,     setFormat]     = useState('nassau')
   const [numPlayers, setNumPlayers] = useState(4)
-  const [players, setPlayers]     = useState([
+  const [players,    setPlayers]    = useState([
     { name: '', handicap: 0 },
     { name: '', handicap: 0 },
     { name: '', handicap: 0 },
     { name: '', handicap: 0 },
   ])
-  const [course, setCourse]       = useState(COURSES[0])
-  const [si, setSi]               = useState([...COURSES[0].si])
-  const [par, setPar]             = useState([...COURSES[0].par])
-  const [teamA, setTeamA]         = useState([0, 1])
-  const [teamB, setTeamB]         = useState([2, 3])
+  const [course,     setCourse]     = useState(COURSES[0])
+  const [si,         setSi]         = useState([...COURSES[0].si])
+  const [par,        setPar]        = useState([...COURSES[0].par])
+  const [teamA,      setTeamA]      = useState([0, 1])
+  const [teamB,      setTeamB]      = useState([2, 3])
   const [playWithin, setPlayWithin] = useState(false)
+  const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
+  const [betUnit,    setBetUnit]    = useState(20)
 
-  // Nassau bets
-  const [betValues, setBetValues] = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
-  // Skins / Stableford bet
-  const [betUnit, setBetUnit]     = useState(20)
+  // Pré-preenche Jogador 1 com dados do perfil logado
+  useEffect(() => {
+    const meta = session?.user?.user_metadata
+    if (meta) {
+      setPlayers(prev => prev.map((p, i) =>
+        i === 0
+          ? { name: meta.full_name?.split(' ')[0] || '', handicap: meta.handicap || 0 }
+          : p
+      ))
+    }
+  }, [session])
 
   const updPlayer = (i, f, v) =>
-    setPlayers(prev => prev.map((p, pi) => pi === i ? { ...p, [f]: f === 'handicap' ? Number(v) : v } : p))
+    setPlayers(prev => prev.map((p, pi) =>
+      pi === i ? { ...p, [f]: f === 'handicap' ? Number(v) : v } : p
+    ))
 
   const toggleTeam = (pi) => {
     if (teamA.includes(pi)) {
@@ -55,102 +66,155 @@ export default function SetupScreen({ onStart, onBack, session }) {
     })
   }
 
+  const inputStyle = {
+    width: '100%',
+    background: 'rgba(0,0,0,0.3)',
+    border: '0.5px solid rgba(255,255,255,0.12)',
+    borderRadius: 'var(--rr)',
+    color: 'var(--cream)',
+    fontFamily: 'var(--sans)',
+    fontSize: 14,
+    padding: '8px 10px',
+  }
+
+  const hcpStyle = {
+    width: 60, height: 34,
+    background: 'rgba(0,0,0,0.3)',
+    border: '0.5px solid rgba(255,255,255,0.12)',
+    borderRadius: 'var(--rr)',
+    color: 'var(--cream)',
+    fontFamily: 'var(--sans)',
+    fontSize: 14, fontWeight: 700,
+    textAlign: 'center',
+  }
+
   return (
     <div className="screen">
       <header className="app-header">
         <button className="back-btn" onClick={onBack}>←</button>
-        <span className="header-title">⛳ Nassau<span>App</span></span>
+        <span className="header-title" style={{ fontFamily: 'var(--serif)', fontSize: 20 }}>
+          ⛳ Nassau<span style={{ color: 'var(--gold)' }}>App</span>
+        </span>
         <div style={{ width: 60 }}/>
       </header>
 
       <div className="screen-body">
 
-        {/* Format */}
+        {/* Formato */}
         <div className="card">
           <h2>Formato de jogo</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {FORMATS.map(f => (
               <button key={f.id}
-                className={`toggle-btn${format === f.id ? ' active' : ''}`}
-                style={{ textAlign: 'left', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}
-                onClick={() => setFormat(f.id)}>
-                <span style={{ fontSize: 20 }}>{f.icon}</span>
+                onClick={() => setFormat(f.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                  background: format === f.id ? 'rgba(201,168,76,0.12)' : 'rgba(0,0,0,0.2)',
+                  border: `0.5px solid ${format === f.id ? 'var(--gold)' : 'rgba(255,255,255,0.08)'}`,
+                  textAlign: 'left', fontFamily: 'var(--sans)',
+                }}>
+                <span style={{ fontSize: 22 }}>{f.icon}</span>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{f.label}</div>
-                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>{f.desc}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: format === f.id ? 'var(--gold)' : 'var(--cream)' }}>
+                    {f.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted2)', marginTop: 2 }}>{f.desc}</div>
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Players */}
+        {/* Jogadores */}
         <div className="card">
           <h2>Jogadores</h2>
           <div className="toggle-row">
             {[2,3,4].map(n => (
-              <button key={n} className={`toggle-btn${numPlayers === n ? ' active' : ''}`}
-                onClick={() => setNumPlayers(n)}>{n} jogadores</button>
+              <button key={n}
+                className={`toggle-btn${numPlayers === n ? ' active' : ''}`}
+                onClick={() => setNumPlayers(n)}>
+                {n} jogadores
+              </button>
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Array.from({ length: numPlayers }, (_, i) => (
               <div key={i} style={{
-                background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: 12,
-                borderLeft: `3px solid ${i < 2 ? '#4488cc' : '#cc4444'}`
+                background: 'rgba(0,0,0,0.2)',
+                borderRadius: 10, padding: '12px 14px',
+                borderLeft: `2px solid ${i < 2 ? '#4a7acc' : '#aa4444'}`,
               }}>
-                <input
-                  className="text-input" placeholder={`Jogador ${i + 1}`}
-                  value={players[i].name}
-                  onChange={e => updPlayer(i, 'name', e.target.value)}
-                  style={{ marginBottom: 8, fontSize: 13, padding: '7px 10px' }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)' }}>
-                  <span>HCP</span>
-                  <input type="number" min="-10" max="54"
-                    className="num-input"
-                    value={players[i].handicap}
-                    onChange={e => updPlayer(i, 'handicap', e.target.value)}
-                    style={{ width: 52, height: 32, fontSize: 13 }}
-                  />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: i < 2 ? '#6aaaee' : '#ee6666', fontWeight: 600, letterSpacing: '1px', minWidth: 60 }}>
+                    {i < 2 ? 'DUPLA A' : 'DUPLA B'}
+                  </div>
+                  {i === 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--gold)', letterSpacing: '1px' }}>
+                      ★ Você
+                    </div>
+                  )}
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    style={{ ...inputStyle, flex: 1 }}
+                    placeholder={`Jogador ${i + 1}`}
+                    value={players[i].name}
+                    onChange={e => updPlayer(i, 'name', e.target.value)}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted2)', letterSpacing: '1px' }}>HCP</span>
+                    <input
+                      type="number" min="-10" max="54"
+                      style={hcpStyle}
+                      value={players[i].handicap}
+                      onChange={e => updPlayer(i, 'handicap', e.target.value)}
+                    />
+                  </div>
+                </div>
+                {i === 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 6, letterSpacing: '0.3px' }}>
+                    Handicap do seu perfil — ajuste conforme o tee de hoje
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Teams (Nassau only with 4 players) */}
+        {/* Duplas — Nassau com 4 jogadores */}
         {format === 'nassau' && numPlayers === 4 && (
           <div className="card">
             <h2>Formação das duplas</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
               {Array.from({ length: 4 }, (_, i) => (
                 <button key={i}
+                  onClick={() => toggleTeam(i)}
                   style={{
                     padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
-                    border: `2px solid ${teamA.includes(i) ? '#4488cc' : '#cc4444'}`,
-                    background: teamA.includes(i) ? 'rgba(68,136,204,0.15)' : 'rgba(204,68,68,0.15)',
-                    color: teamA.includes(i) ? '#7ab5f0' : '#f07a7a',
-                    fontFamily: "'DM Sans', sans-serif",
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  }}
-                  onClick={() => toggleTeam(i)}>
-                  <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, opacity: 0.8 }}>
+                    border: `1.5px solid ${teamA.includes(i) ? '#4a7acc' : '#aa4444'}`,
+                    background: teamA.includes(i) ? 'rgba(74,122,204,0.12)' : 'rgba(170,68,68,0.12)',
+                    fontFamily: 'var(--sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  }}>
+                  <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1.5px', color: teamA.includes(i) ? '#6aaaee' : '#ee6666', fontWeight: 600 }}>
                     {teamA.includes(i) ? 'Dupla A' : 'Dupla B'}
                   </span>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{players[i].name || `J${i+1}`}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cream)' }}>
+                    {players[i].name || `J${i+1}`}
+                  </span>
                 </button>
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 10 }}>
-              <span style={{ color: '#7ab5f0' }}>A: {teamA.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
-              <span style={{ color: '#f07a7a' }}>B: {teamB.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 12 }}>
+              <span style={{ color: '#6aaaee' }}>A: {teamA.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
+              <span style={{ color: '#ee6666' }}>B: {teamB.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)' }}
+            {/* Toggle individual dentro da dupla */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', paddingTop: 10, borderTop: '0.5px solid var(--border)' }}
               onClick={() => setPlayWithin(v => !v)}>
               <div style={{
                 width: 44, height: 24, borderRadius: 12, padding: 2,
-                background: playWithin ? 'var(--green2)' : 'rgba(255,255,255,0.15)',
+                background: playWithin ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
                 transition: 'background .2s', flexShrink: 0,
               }}>
                 <div style={{
@@ -166,16 +230,16 @@ export default function SetupScreen({ onStart, onBack, session }) {
           </div>
         )}
 
-        {/* Bets */}
+        {/* Apostas */}
         <div className="card">
           <h2>Valores das apostas (R$)</h2>
           {format === 'nassau' ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[['frontVal','Front 9'],['backVal','Back 9'],['totalVal','Total 18']].map(([k,l]) => (
                 <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div className="field-label" style={{ textAlign: 'center' }}>{l}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>{l}</div>
                   <input type="number" min="1"
-                    style={{ width: 72, height: 44, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: "'DM Sans', sans-serif" }}
+                    style={{ width: 70, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
                     value={betValues[k]}
                     onChange={e => setBetValues(prev => ({ ...prev, [k]: Number(e.target.value) }))}
                   />
@@ -184,46 +248,48 @@ export default function SetupScreen({ onStart, onBack, session }) {
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div className="field-label">{format === 'skins' ? 'Valor por Skin' : 'Valor por Ponto'}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {format === 'skins' ? 'Valor por Skin' : 'Valor por Ponto'}
+              </div>
               <input type="number" min="1"
-                style={{ width: 80, height: 44, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: "'DM Sans', sans-serif" }}
+                style={{ width: 80, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
                 value={betUnit}
                 onChange={e => setBetUnit(Number(e.target.value))}
               />
-              <span style={{ color: 'var(--muted)', fontSize: 13 }}>R$</span>
+              <span style={{ color: 'var(--muted2)', fontSize: 13 }}>R$</span>
             </div>
           )}
         </div>
 
-        {/* Course */}
+        {/* Campo */}
         <div className="card">
           <h2>Campo</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {COURSES.map(c => (
               <button key={c.id}
+                onClick={() => selectCourse(c)}
                 style={{
-                  padding: '10px 14px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                  border: `1px solid ${course.id === c.id ? 'var(--gold)' : 'rgba(255,255,255,0.12)'}`,
-                  background: course.id === c.id ? 'rgba(201,168,76,0.12)' : 'rgba(0,0,0,0.2)',
-                  color: 'var(--cream)', fontFamily: "'DM Sans', sans-serif",
-                }}
-                onClick={() => selectCourse(c)}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div>
-                {c.city && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{c.city}</div>}
+                  padding: '11px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                  border: `0.5px solid ${course.id === c.id ? 'var(--gold)' : 'rgba(255,255,255,0.08)'}`,
+                  background: course.id === c.id ? 'rgba(201,168,76,0.08)' : 'rgba(0,0,0,0.2)',
+                  fontFamily: 'var(--sans)',
+                }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: course.id === c.id ? 'var(--gold)' : 'var(--cream)' }}>{c.name}</div>
+                {c.city && <div style={{ fontSize: 11, color: 'var(--muted2)', marginTop: 2 }}>{c.city}</div>}
               </button>
             ))}
           </div>
         </div>
 
-        {/* SI (collapsible) */}
+        {/* SI */}
         <div className="card">
           <h2>Índice Stroke — {course.name}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 5 }}>
             {Array.from({ length: 18 }, (_, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <div style={{ fontSize: 9, color: 'var(--muted)' }}>B{i+1}</div>
+                <div style={{ fontSize: 9, color: 'var(--muted2)' }}>B{i+1}</div>
                 <input type="number" min="1" max="18"
-                  style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: "'DM Sans', sans-serif" }}
+                  style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: 'var(--sans)' }}
                   value={si[i]}
                   onChange={e => setSi(prev => prev.map((v,vi) => vi===i ? Number(e.target.value) : v))}
                 />
@@ -235,6 +301,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
         <button className="btn-primary" onClick={handleStart} disabled={!canStart}>
           Iniciar Rodada →
         </button>
+
       </div>
     </div>
   )
