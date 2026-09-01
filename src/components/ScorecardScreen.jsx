@@ -143,9 +143,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   const applyPhotoScores = (editedScores) => {
     const src = editedScores || photoResult?.scores
     if (!src) return
-    setScores(src.map(row =>
-      row.map(v => v === null ? null : Number(v))
-    ))
+    setScores(players.map((_, pi) => {
+      const row = src[pi] || []
+      return Array.from({ length: 18 }, (_, i) => {
+        const v = row[i]
+        return v === null || v === undefined ? null : Number(v)
+      })
+    }))
     setPhotoMode(false); setPhotoImg(null); setPhotoB64(null); setPhotoResult(null)
   }
 
@@ -480,7 +484,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                 ✅  Rodada salva!
               </div>
               <button
-                onClick={() => onFinish('presentation')}
+                onClick={() => {
+                  window._nassauPresentation = { players, playerMoney, course, tLA, tLB }
+                  onFinish('presentation')
+                }}
                 style={{
                   width: '100%', padding: 13,
                   background: 'rgba(201,168,76,0.07)',
@@ -623,113 +630,135 @@ function MoneyTag({ val }) {
 function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
   const parF9  = par.slice(0,9).reduce((a,b)=>a+b,0)
   const parB9  = par.slice(9).reduce((a,b)=>a+b,0)
-  const parTot = parF9 + parB9
+
+  const playerStats = players.map((p, pi) => {
+    let f9G=0, b9G=0, f9N=0, b9N=0, f9C=0, b9C=0
+    HOLES.forEach((_, i) => {
+      const g = scores[pi][i]
+      if (g !== null) {
+        const st = getStrokesPair(0, p.handicap, si, i)
+        if (i < 9) { f9G+=g; f9N+=g-st; f9C++ } else { b9G+=g; b9N+=g-st; b9C++ }
+      }
+    })
+    return { f9G, b9G, f9N, b9N, f9C, b9C, totG: f9G+b9G, totN: f9N+b9N }
+  })
+
+  const sc = (g, parH) => {
+    if (g===null) return 'var(--muted2)'
+    const d = g - parH
+    return d<=-2?'#ffd700':d===-1?'var(--green)':d===0?'var(--cream)':d===1?'#e8a070':'var(--red)'
+  }
+
+  const HalfTable = ({ startH, label, parSum }) => {
+    const holes = Array.from({length:9},(_,i)=>startH+i)
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10, color: 'var(--gold)', letterSpacing:'2px', textTransform:'uppercase', marginBottom:6, fontWeight:600 }}>
+          {label} <span style={{ color:'var(--muted2)', fontWeight:400 }}>· Par {parSum}</span>
+        </div>
+        <div className="sc-wrap">
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead>
+              <tr style={{ background:'rgba(0,0,0,0.4)' }}>
+                <th style={{ textAlign:'left', padding:'5px 8px', color:'var(--muted2)', fontWeight:600, minWidth:64 }}>Jogador</th>
+                {holes.map(h=><th key={h} style={{ padding:'5px 4px', textAlign:'center', color:'var(--muted2)', fontWeight:600, minWidth:26 }}>{h}</th>)}
+                <th style={{ padding:'5px 6px', textAlign:'center', color:'var(--gold)', fontWeight:700, minWidth:34, background:'rgba(201,168,76,0.1)' }}>Tot</th>
+                <th style={{ padding:'5px 6px', textAlign:'center', color:'var(--green)', fontWeight:700, minWidth:34, background:'rgba(93,186,122,0.08)' }}>Net</th>
+              </tr>
+              <tr style={{ background:'rgba(0,0,0,0.2)' }}>
+                <th style={{ textAlign:'left', padding:'3px 8px', color:'var(--gold)', fontSize:10 }}>Par</th>
+                {holes.map(h=><th key={h} style={{ textAlign:'center', padding:'3px 2px', color:'var(--gold)', fontSize:11 }}>{par[h-1]}</th>)}
+                <th style={{ textAlign:'center', color:'var(--gold)', fontSize:11 }}>{parSum}</th>
+                <th style={{ textAlign:'center', color:'var(--muted2)', fontSize:10 }}>–</th>
+              </tr>
+              <tr style={{ background:'rgba(0,0,0,0.1)' }}>
+                <th style={{ textAlign:'left', padding:'3px 8px', color:'var(--muted)', fontSize:9 }}>SI</th>
+                {holes.map(h=><th key={h} style={{ textAlign:'center', padding:'3px 2px', color:'var(--muted)', fontSize:9 }}>{si[h-1]}</th>)}
+                <th style={{ textAlign:'center', color:'var(--muted)', fontSize:9 }}>–</th>
+                <th style={{ textAlign:'center', color:'var(--muted)', fontSize:9 }}>–</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((p,pi)=>{
+                const st = playerStats[pi]
+                const isF9 = startH===1
+                const gross = isF9?st.f9G:st.b9G
+                const net   = isF9?st.f9N:st.b9N
+                const count = isF9?st.f9C:st.b9C
+                return (
+                  <tr key={pi} style={{ background: pi%2===0?'rgba(0,0,0,0.15)':'rgba(0,0,0,0.05)', borderBottom:'0.5px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding:'6px 8px', fontWeight:700, fontSize:12, color: teamA.includes(pi)?'#6aaaee':'#ee6666' }}>
+                      {p.name} <span style={{ color:'var(--muted2)', fontWeight:400, fontSize:10 }}>·{p.handicap}</span>
+                    </td>
+                    {holes.map(h=>{
+                      const i=h-1, g=scores[pi][i]
+                      const net2 = g!==null ? g - getStrokesPair(0,p.handicap,si,i) : null
+                      return (
+                        <td key={h} style={{ textAlign:'center', padding:'5px 2px' }}>
+                          {g!==null?(
+                            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
+                              <span style={{ fontSize:14, fontWeight:700, color:sc(g,par[i]), fontFamily:'var(--serif)' }}>{g}</span>
+                              <span style={{ fontSize:8, color:'var(--gold)', opacity:0.7 }}>{net2}</span>
+                            </div>
+                          ):<span style={{ color:'var(--muted)', fontSize:11 }}>–</span>}
+                        </td>
+                      )
+                    })}
+                    <td style={{ textAlign:'center', padding:'5px 4px', background:'rgba(201,168,76,0.05)' }}>
+                      <span style={{ fontFamily:'var(--serif)', fontSize:15, fontWeight:700, color:'var(--cream)' }}>{count?gross:'–'}</span>
+                    </td>
+                    <td style={{ textAlign:'center', padding:'5px 4px', background:'rgba(93,186,122,0.05)' }}>
+                      <span style={{ fontFamily:'var(--serif)', fontSize:15, fontWeight:700, color:'var(--green)' }}>{count?net:'–'}</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="card" style={{ padding: '14px 8px' }}>
-      <div style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: 10, paddingLeft: 8 }}>
-        Scorecard
-        <span style={{ fontFamily: 'var(--sans)', fontSize: 10, color: 'var(--muted2)', fontWeight: 400, marginLeft: 10, letterSpacing: '1px' }}>
-          🟢 birdie · 🟡 eagle · 🟠 bogey · 🔴 double
-        </span>
+    <div className="card">
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <div style={{ fontFamily:'var(--serif)', fontSize:18, color:'var(--gold)', fontWeight:600 }}>Scorecard</div>
+        <div style={{ fontSize:10, color:'var(--muted2)', display:'flex', gap:6 }}>
+          <span><span style={{color:'var(--green)'}}>●</span> birdie</span>
+          <span><span style={{color:'#ffd700'}}>●</span> eagle</span>
+          <span><span style={{color:'#e8a070'}}>●</span> bogey</span>
+          <span><span style={{color:'var(--red)'}}>●</span> double</span>
+        </div>
       </div>
-      <div className="sc-wrap">
-        <table className="sct">
-          <thead>
-            <tr>
-              <th>Jogador</th>
-              {HOLES.map(h => <th key={h} className={h > 9 ? 'bk' : ''}>{h}</th>)}
-              <th className="tot-h">F9</th>
-              <th className="tot-h">B9</th>
-              <th className="tot-h">Gross</th>
-              <th className="tot-h">Net</th>
-            </tr>
-            <tr>
-              <th className="par-r">Par</th>
-              {par.map((p, i) => <th key={i} className={`par-r ${i >= 9 ? 'bk' : ''}`}>{p}</th>)}
-              <th className="par-r">{parF9}</th>
-              <th className="par-r">{parB9}</th>
-              <th className="par-r">{parTot}</th>
-              <th className="si-r">–</th>
-            </tr>
-            <tr>
-              <th className="si-r">SI</th>
-              {si.map((s, i) => <th key={i} className={`si-r ${i >= 9 ? 'bk' : ''}`}>{s}</th>)}
-              <th className="si-r">–</th>
-              <th className="si-r">–</th>
-              <th className="si-r">–</th>
-              <th className="si-r">–</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((p, pi) => {
-              let f9Gross=0, b9Gross=0
-              let f9Count=0, b9Count=0
-              HOLES.forEach((_, i) => {
-                const g = scores[pi][i]
-                if (g !== null) {
-                  if (i < 9)  { f9Gross += g; f9Count++ }
-                  else        { b9Gross += g; b9Count++ }
-                }
-              })
-              const totalGross = f9Gross + b9Gross
-              // Net medal = total gross - course handicap (not per-hole stroke distribution)
-              const totalNet   = (f9Count + b9Count) > 0 ? totalGross - p.handicap : 0
-              const f9Net      = f9Count > 0 ? f9Gross - Math.round(p.handicap * f9Count / (f9Count + b9Count)) : 0
-              const b9Net      = b9Count > 0 ? b9Gross - Math.round(p.handicap * b9Count / (f9Count + b9Count)) : 0
-              return (
-                <tr key={pi}>
-                  <td className="pnc" style={{
-                    color: teamA.includes(pi) ? '#6aaaee' : '#ee6666',
-                    fontSize: 11, fontWeight: 700,
-                  }}>
-                    {p.name}
-                    <br/>
-                    <small style={{ color: 'var(--muted2)', fontWeight: 400, fontSize: 9 }}>HCP {p.handicap}</small>
-                  </td>
-                  {HOLES.map((h, i) => {
-                    const g = scores[pi][i]
-                    const st = getStrokesPair(0, p.handicap, si, i)
-                    const net = g !== null ? g - st : null
-                    const diffPar = g !== null ? g - par[i] : null
-                    const scoreColor = diffPar === null ? '' :
-                      diffPar <= -2 ? '#ffd700' :
-                      diffPar === -1 ? 'var(--green)' :
-                      diffPar === 0  ? 'var(--cream)' :
-                      diffPar === 1  ? '#e8a070' : 'var(--red)'
-                    return (
-                      <td key={h} className={h > 9 ? 'bk' : ''}>
-                        {g !== null ? <>
-                          <span className="gc" style={{ color: scoreColor }}>{g}</span>
-                          <span className="nc">{net}</span>
-                        </> : <span style={{ color: 'var(--muted)', fontSize: 10 }}>–</span>}
-                      </td>
-                    )
-                  })}
-                  <td className="tot-c">
-                    <span className="gc">{f9Count ? f9Gross : '–'}</span>
-                    <span className="nc">{f9Count ? f9Net : ''}</span>
-                  </td>
-                  <td className="tot-c">
-                    <span className="gc">{b9Count ? b9Gross : '–'}</span>
-                    <span className="nc">{b9Count ? b9Net : ''}</span>
-                  </td>
-                  <td className="tot-c">
-                    <span className="gc">{(f9Count+b9Count) ? totalGross : '–'}</span>
-                  </td>
-                  <td className="tot-c">
-                    <span className="gc" style={{ color: 'var(--green2)' }}>{(f9Count+b9Count) ? totalNet : '–'}</span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+
+      <HalfTable startH={1}  label="Front 9" parSum={parF9}/>
+      <HalfTable startH={10} label="Back 9"  parSum={parB9}/>
+
+      {/* Totais */}
+      <div style={{ borderTop:'0.5px solid var(--border)', paddingTop:12 }}>
+        <div style={{ fontSize:10, color:'var(--gold)', letterSpacing:'2px', textTransform:'uppercase', marginBottom:8, fontWeight:600 }}>Total 18</div>
+        <div style={{ display:'grid', gridTemplateColumns:`repeat(${players.length},1fr)`, gap:6 }}>
+          {players.map((p,pi)=>{
+            const st=playerStats[pi], played=st.f9C+st.b9C
+            return (
+              <div key={pi} style={{ textAlign:'center', padding:'12px 6px', background:'rgba(0,0,0,0.2)', borderRadius:10,
+                border:`0.5px solid ${teamA.includes(pi)?'rgba(106,170,238,0.2)':'rgba(238,102,102,0.2)'}` }}>
+                <div style={{ fontSize:11, fontWeight:700, color:teamA.includes(pi)?'#6aaaee':'#ee6666', marginBottom:6 }}>{p.name}</div>
+                <div style={{ fontFamily:'var(--serif)', fontSize:26, fontWeight:700, color:'var(--cream)', lineHeight:1 }}>{played?st.totG:'–'}</div>
+                <div style={{ fontSize:9, color:'var(--muted2)', marginTop:2, letterSpacing:'1px', textTransform:'uppercase' }}>gross</div>
+                {played>0&&<>
+                  <div style={{ fontFamily:'var(--serif)', fontSize:18, fontWeight:700, color:'var(--green)', marginTop:6 }}>{st.totN}</div>
+                  <div style={{ fontSize:9, color:'var(--muted2)', letterSpacing:'1px', textTransform:'uppercase' }}>net</div>
+                </>}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
 }
-
 // ── PhotoConfirm — editable confirmation after card reading ───────────────────
 function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
   const [editScores, setEditScores] = useState(
@@ -741,7 +770,8 @@ function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
 
   const updScore = (pi, hi, val) => {
     setEditScores(prev => {
-      const next = prev.map(r => [...r])
+      const next = prev.map(r => r ? [...r] : Array(18).fill(null))
+      if (!next[pi]) next[pi] = Array(18).fill(null)
       next[pi][hi] = val === '' ? null : Number(val)
       return next
     })
