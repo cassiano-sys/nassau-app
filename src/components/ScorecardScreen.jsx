@@ -733,9 +733,10 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
 // ── PhotoConfirm — editable confirmation after card reading ───────────────────
 function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
   const [editScores, setEditScores] = useState(
-    () => (photoResult.scores || []).map(row =>
-      Array.from({ length: 18 }, (_, i) => row[i] ?? null)
-    )
+    () => players.map((_, pi) => {
+      const row = (photoResult.scores || [])[pi] || []
+      return Array.from({ length: 18 }, (_, i) => row[i] ?? null)
+    })
   )
 
   const updScore = (pi, hi, val) => {
