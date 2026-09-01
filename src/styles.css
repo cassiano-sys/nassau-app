@@ -587,3 +587,17 @@ input  { -webkit-tap-highlight-color: transparent; }
   to   { opacity: 1; transform: translateY(0); }
 }
 .fade-in { animation: fadeInUp .4s ease both; }
+
+/* ── HCP and number inputs — force dark theme ── */
+input[type="number"] {
+  background: rgba(0,0,0,0.3) !important;
+  border: 0.5px solid rgba(255,255,255,0.12) !important;
+  color: var(--cream) !important;
+  border-radius: var(--rr) !important;
+  font-family: var(--sans) !important;
+}
+input[type="number"]:focus {
+  border-color: var(--gold) !important;
+  background: rgba(201,168,76,0.06) !important;
+  outline: none !important;
+}
