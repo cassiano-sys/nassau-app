@@ -294,8 +294,9 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       {tab === 'card' ? (
         <div className="screen-body">
           {/* Photo button */}
-          <button className="photo-btn" onClick={() => setPhotoMode(true)}>
-            📷  Lançar por foto do cartão
+          <button className="photo-btn" onClick={() => setPhotoMode(true)}
+            style={{ marginBottom: 10, fontSize: 14, fontWeight: 600 }}>
+            📷  Foto do Cartão
           </button>
 
           {/* Hole nav */}
@@ -429,9 +430,12 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
           {/* Format results */}
           {format === 'nassau' && (
-            <NassauResults pairs={pairs} players={players} indivResults={indivResults}
-              indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
-              tLA={tLA} tLB={tLB} betValues={betValues}/>
+            <>
+              <div style={{ height: '0.5px', background: 'var(--border)', margin: '4px 0 12px' }}/>
+              <NassauResults pairs={pairs} players={players} indivResults={indivResults}
+                indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
+                tLA={tLA} tLB={tLB} betValues={betValues}/>
+            </>
           )}
           {format === 'skins' && skinsResult && (
             <SkinsResults players={players} result={skinsResult} betUnit={betUnit}/>
@@ -440,22 +444,15 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             <StablefordResults players={players} result={stableResult} betUnit={betUnit}/>
           )}
 
-          {/* Final money */}
+          {/* Final money — números grandes */}
           <div className="card">
             <h2>Saldo Final</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="saldo-grid">
               {players.map((p, pi) => (
-                <div key={pi} style={{
-                  borderRadius: 12, padding: 14, textAlign: 'center',
-                  background: playerMoney[pi] > 0 ? 'rgba(45,106,45,0.2)' : playerMoney[pi] < 0 ? 'rgba(224,85,85,0.1)' : 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${playerMoney[pi] > 0 ? 'rgba(74,154,74,0.4)' : playerMoney[pi] < 0 ? 'rgba(224,85,85,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cream)', marginBottom: 4 }}>{p.name}</div>
-                  <div style={{
-                    fontSize: 22, fontWeight: 700, fontFamily: "'Playfair Display', serif",
-                    color: playerMoney[pi] > 0 ? '#55cc88' : playerMoney[pi] < 0 ? 'var(--red)' : 'var(--muted)',
-                  }}>
-                    {playerMoney[pi] > 0 ? '+' : ''}R$ {playerMoney[pi]}
+                <div key={pi} className={`saldo-cell ${playerMoney[pi] > 0 ? 'win' : playerMoney[pi] < 0 ? 'lose' : 'tie'}`}>
+                  <div className="saldo-name">{p.name}</div>
+                  <div className={`saldo-val ${playerMoney[pi] > 0 ? 'pos' : playerMoney[pi] < 0 ? 'neg' : 'neu'}`}>
+                    {playerMoney[pi] > 0 ? '+' : ''}R${Math.abs(playerMoney[pi])}
                   </div>
                 </div>
               ))}
@@ -464,14 +461,34 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
           {/* Save */}
           {!saved ? (
-            <button className="btn-green" onClick={saveRound} disabled={saving}>
-              {saving ? 'Salvando...' : '💾 Salvar rodada'}
+            <button className="btn-green" onClick={saveRound} disabled={saving}
+              style={{ marginBottom: 10 }}>
+              {saving ? 'Salvando...' : '💾  Salvar rodada'}
             </button>
           ) : (
-            <div style={{ textAlign: 'center', padding: 14, color: 'var(--green2)', fontWeight: 600,
-              background: 'rgba(45,106,45,0.15)', borderRadius: 'var(--r)', border: '1px solid var(--green2)' }}>
-              ✅ Rodada salva!
-            </div>
+            <>
+              <div style={{
+                textAlign: 'center', padding: 13, color: 'var(--green)',
+                fontWeight: 600, background: 'rgba(45,90,45,0.15)',
+                borderRadius: 'var(--r)', border: '0.5px solid rgba(93,186,122,0.3)',
+                marginBottom: 10, fontSize: 14, letterSpacing: '0.5px',
+              }}>
+                ✅  Rodada salva!
+              </div>
+              <button
+                onClick={() => onFinish('presentation')}
+                style={{
+                  width: '100%', padding: 13,
+                  background: 'rgba(201,168,76,0.07)',
+                  border: '0.5px solid var(--border-gold)',
+                  borderRadius: 'var(--r)', color: 'var(--gold)',
+                  fontFamily: 'var(--sans)', fontSize: 14, fontWeight: 500,
+                  cursor: 'pointer', letterSpacing: '0.5px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                📺  Modo Apresentação
+              </button>
+            </>
           )}
         </div>
       )}
@@ -605,8 +622,13 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
   const parTot = parF9 + parB9
 
   return (
-    <div className="card">
-      <h2>Scorecard</h2>
+    <div className="card" style={{ padding: '14px 8px' }}>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.5px', marginBottom: 10, paddingLeft: 8 }}>
+        Scorecard
+        <span style={{ fontFamily: 'var(--sans)', fontSize: 10, color: 'var(--muted2)', fontWeight: 400, marginLeft: 10, letterSpacing: '1px' }}>
+          🟢 birdie · 🟡 eagle · 🟠 bogey · 🔴 double
+        </span>
+      </div>
       <div className="sc-wrap">
         <table className="sct">
           <thead>
@@ -653,20 +675,30 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
               const b9Net      = b9Count > 0 ? b9Gross - Math.round(p.handicap * b9Count / (f9Count + b9Count)) : 0
               return (
                 <tr key={pi}>
-                  <td className="pnc" style={{ color: teamA.includes(pi) ? '#7ab5f0' : '#f07a7a' }}>
-                    {p.name}<br/><small style={{ color: 'var(--muted)' }}>HCP {p.handicap}</small>
+                  <td className="pnc" style={{
+                    color: teamA.includes(pi) ? '#6aaaee' : '#ee6666',
+                    fontSize: 11, fontWeight: 700,
+                  }}>
+                    {p.name}
+                    <br/>
+                    <small style={{ color: 'var(--muted2)', fontWeight: 400, fontSize: 9 }}>HCP {p.handicap}</small>
                   </td>
                   {HOLES.map((h, i) => {
                     const g = scores[pi][i]
-                    // Per-hole medal net: strokes player receives vs scratch
                     const st = getStrokesPair(0, p.handicap, si, i)
                     const net = g !== null ? g - st : null
+                    const diffPar = g !== null ? g - par[i] : null
+                    const scoreColor = diffPar === null ? '' :
+                      diffPar <= -2 ? '#ffd700' :
+                      diffPar === -1 ? 'var(--green)' :
+                      diffPar === 0  ? 'var(--cream)' :
+                      diffPar === 1  ? '#e8a070' : 'var(--red)'
                     return (
                       <td key={h} className={h > 9 ? 'bk' : ''}>
                         {g !== null ? <>
-                          <span className="gc">{g}</span>
+                          <span className="gc" style={{ color: scoreColor }}>{g}</span>
                           <span className="nc">{net}</span>
-                        </> : '–'}
+                        </> : <span style={{ color: 'var(--muted)', fontSize: 10 }}>–</span>}
                       </td>
                     )
                   })}
@@ -804,15 +836,18 @@ function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, t
         const m = indivMoney[mi]
         return (
           <div key={mi} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {players[a].name} vs {players[b].name}
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gold)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '2px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{players[a].name}</span>
+              <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 10 }}>vs</span>
+              <span>{players[b].name}</span>
             </div>
             <ResultDetailRow label="Front 9" seg={res.front} money={m.front} nA={players[a].name} nB={players[b].name} unit={betValues.frontVal}/>
             <ResultDetailRow label="Back 9"  seg={res.back}  money={m.back}  nA={players[a].name} nB={players[b].name} unit={betValues.backVal}/>
-            <div className="seg-row" style={{ fontWeight: 700, color: 'var(--cream)' }}>
-              <span>Saldo</span>
-              <span className={m.grand > 0 ? 'pos' : m.grand < 0 ? 'neg' : 'neu'}>
-                {m.grand === 0 ? 'Empatado' : `${m.grand > 0 ? players[a].name : players[b].name} +R$ ${Math.abs(m.grand)}`}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--border)', fontWeight: 700 }}>
+              <span style={{ fontSize: 13, color: 'var(--cream)', letterSpacing: '0.3px' }}>Saldo</span>
+              <span className={m.grand > 0 ? 'pos' : m.grand < 0 ? 'neg' : 'neu'}
+                style={{ fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 700 }}>
+                {m.grand === 0 ? 'Empatado' : `${m.grand > 0 ? players[a].name : players[b].name} +R$${Math.abs(m.grand)}`}
               </span>
             </div>
           </div>
@@ -841,17 +876,19 @@ function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, t
 function ResultDetailRow({ label, seg, money, nA, nB, unit }) {
   const w = seg.mainScore > 0 ? nA : seg.mainScore < 0 ? nB : null
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 12, color: 'var(--cream)', paddingLeft: 8 }}>
-        Principal: {seg.mainScore === 0 ? 'AS' : `${w} ${seg.mainScore > 0 ? '+' : ''}${seg.mainScore}`} → <span className={money.main > 0 ? 'pos' : money.main < 0 ? 'neg' : 'neu'}>{money.main > 0 ? '+' : ''}R$ {money.main}</span>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: 'var(--muted2)', marginBottom: 4, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--cream)', paddingLeft: 8, marginBottom: 2 }}>
+        <span>Principal: <strong>{seg.mainScore === 0 ? 'AS' : `${w} ${seg.mainScore > 0 ? '+' : ''}${seg.mainScore}`}</strong></span>
+        <span className={money.main > 0 ? 'pos' : money.main < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 700 }}>{money.main > 0 ? '+' : ''}R${Math.abs(money.main)}</span>
       </div>
       {seg.pressScores.map((ps, i) => {
         const pw = ps > 0 ? nA : ps < 0 ? nB : null
         const pMoney = Math.sign(ps) * unit
         return (
-          <div key={i} style={{ fontSize: 12, color: 'var(--muted)', paddingLeft: 8 }}>
-            Press {i+1}: {ps === 0 ? 'AS' : `${pw} ${ps > 0 ? '+' : ''}${ps}`} → <span className={pMoney > 0 ? 'pos' : pMoney < 0 ? 'neg' : 'neu'}>{pMoney > 0 ? '+' : ''}R$ {pMoney}</span>
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted2)', paddingLeft: 8, marginBottom: 2 }}>
+            <span>Press {i+1}: <strong style={{ color: ps !== 0 ? 'var(--cream)' : 'var(--muted2)' }}>{ps === 0 ? 'AS' : `${pw} ${ps > 0 ? '+' : ''}${ps}`}</strong></span>
+            <span className={pMoney > 0 ? 'pos' : pMoney < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontWeight: 700 }}>{pMoney > 0 ? '+' : ''}R${Math.abs(pMoney)}</span>
           </div>
         )
       })}
