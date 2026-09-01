@@ -216,6 +216,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     }
     setSaving(false)
   }
+  // ── Team labels (component scope) ──
+  const tLA = teamA.map(i => players[i].name).join('/')
+  const tLB = teamB.map(i => players[i].name).join('/')
+
   // ── Photo mode UI ──
   if (photoMode) return (
     <div className="screen">
