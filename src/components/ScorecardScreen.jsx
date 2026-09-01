@@ -216,10 +216,6 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     }
     setSaving(false)
   }
-  // ── Team labels ──
-  const tLA = teamA.map(i => players[i].name).join('/')
-  const tLB = teamB.map(i => players[i].name).join('/')
-
   // ── Photo mode UI ──
   if (photoMode) return (
     <div className="screen">
@@ -258,7 +254,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             {processing ? (
               <div className="processing-msg">
                 <div style={{ fontSize: 32, marginBottom: 10 }}>🤖</div>
-                <p>IA lendo o cartão...</p>
+                <p style={{ fontFamily: "var(--serif)", fontSize: 16, color: "var(--cream)", letterSpacing: "1px" }}>Lendo o cartão...</p>
               </div>
             ) : (
               <>
@@ -299,7 +295,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         <div className="screen-body">
           {/* Photo button */}
           <button className="photo-btn" onClick={() => setPhotoMode(true)}>
-            📷 Lançar por foto do cartão
+            📷  Lançar por foto do cartão
           </button>
 
           {/* Hole nav */}
@@ -316,13 +312,23 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
           {/* Hole input card */}
           <div className="card" style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: 'var(--gold)' }}>
-                Buraco {activeHole + 1}
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                Par {par[activeHole]} · SI {si[activeHole]} · {activeHole < 9 ? 'Front' : 'Back'}
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <span style={{ fontFamily: 'var(--serif)', fontSize: 22, color: 'var(--gold)', fontWeight: 600 }}>
+                  Buraco {activeHole + 1}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--muted2)', marginLeft: 8, letterSpacing: '0.5px' }}>
+                  {activeHole < 9 ? 'Front 9' : 'Back 9'}
+                </span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, color: 'var(--cream)', fontFamily: 'var(--serif)', fontWeight: 700 }}>
+                  Par {par[activeHole]}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.5px' }}>
+                  SI {si[activeHole]}
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -336,16 +342,23 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                 const diffLabel = diff === null ? '' : diff === 0 ? 'E' : diff > 0 ? `+${diff}` : String(diff)
                 const diffCls   = diff === null ? '' : diff < 0 ? 'under' : diff === 0 ? 'even' : 'over'
 
+                // Score color class
+                const scoreColorCls = isSet
+                  ? diff <= -2 ? 'eagle' : diff === -1 ? 'birdie'
+                  : diff === 1 ? 'bogey' : diff >= 2 ? 'double' : ''
+                  : ''
                 return (
                   <div key={pi} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '9px 11px', borderRadius: 8, background: 'rgba(0,0,0,0.15)',
-                    borderLeft: `3px solid ${teamA.includes(pi) ? '#4488cc' : '#cc4444'}`,
+                    padding: '10px 12px', borderRadius: 10,
+                    background: 'rgba(0,0,0,0.2)',
+                    borderLeft: `2px solid ${teamA.includes(pi) ? '#4a7acc' : '#aa4444'}`,
+                    marginBottom: 6,
                   }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cream)' }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                        HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : ''}
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cream)', letterSpacing: '0.3px' }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 2, letterSpacing: '0.3px' }}>
+                        HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : ' · scratch'}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -354,7 +367,8 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         {isSet ? (
                           <>
-                            <input type="number" min="1" max="20" className="score-input-set"
+                            <input type="number" min="1" max="20"
+                              className={`score-input-set ${scoreColorCls}`}
                               value={g}
                               onChange={e => upd(pi, activeHole, e.target.value === '' ? null : e.target.value)}
                             />
@@ -370,9 +384,12 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                       <button className="adj-btn"
                         onClick={() => upd(pi, activeHole, isSet ? g + 1 : holePar + 1)}>+</button>
                       {net !== null && (
-                        <span style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 600, minWidth: 40 }}>
-                          net {net}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 }}>
+                          <span style={{ fontSize: 11, color: 'var(--gold)', fontFamily: 'var(--serif)', fontWeight: 700 }}>
+                            {net}
+                          </span>
+                          <span style={{ fontSize: 8, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>net</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -380,14 +397,20 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
               })}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="back-btn" style={{ flex: 1 }}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button className="back-btn" style={{ flex: 1, opacity: activeHole === 0 ? 0.3 : 1 }}
                 onClick={() => setActiveHole(h => Math.max(0, h - 1))} disabled={activeHole === 0}>
-                ← Ant
+                ← Anterior
               </button>
-              <button className="back-btn" style={{ flex: 1 }}
+              <button className="back-btn" style={{
+                flex: 1,
+                background: activeHole < 17 ? 'rgba(201,168,76,0.08)' : 'transparent',
+                borderColor: activeHole < 17 ? 'var(--border-gold)' : 'rgba(255,255,255,0.1)',
+                color: activeHole < 17 ? 'var(--gold)' : 'var(--muted)',
+                opacity: activeHole === 17 ? 0.3 : 1
+              }}
                 onClick={() => setActiveHole(h => Math.min(17, h + 1))} disabled={activeHole === 17}>
-                Próx →
+                Próximo →
               </button>
             </div>
           </div>
@@ -417,15 +440,22 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             <StablefordResults players={players} result={stableResult} betUnit={betUnit}/>
           )}
 
-          {/* Final money — números grandes */}
+          {/* Final money */}
           <div className="card">
             <h2>Saldo Final</h2>
-            <div className="saldo-grid">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {players.map((p, pi) => (
-                <div key={pi} className={`saldo-cell ${playerMoney[pi] > 0 ? 'win' : playerMoney[pi] < 0 ? 'lose' : 'tie'}`}>
-                  <div className="saldo-name">{p.name}</div>
-                  <div className={`saldo-val ${playerMoney[pi] > 0 ? 'pos' : playerMoney[pi] < 0 ? 'neg' : 'neu'}`}>
-                    {playerMoney[pi] > 0 ? '+' : ''}R${playerMoney[pi]}
+                <div key={pi} style={{
+                  borderRadius: 12, padding: 14, textAlign: 'center',
+                  background: playerMoney[pi] > 0 ? 'rgba(45,106,45,0.2)' : playerMoney[pi] < 0 ? 'rgba(224,85,85,0.1)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${playerMoney[pi] > 0 ? 'rgba(74,154,74,0.4)' : playerMoney[pi] < 0 ? 'rgba(224,85,85,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cream)', marginBottom: 4 }}>{p.name}</div>
+                  <div style={{
+                    fontSize: 22, fontWeight: 700, fontFamily: "'Playfair Display', serif",
+                    color: playerMoney[pi] > 0 ? '#55cc88' : playerMoney[pi] < 0 ? 'var(--red)' : 'var(--muted)',
+                  }}>
+                    {playerMoney[pi] > 0 ? '+' : ''}R$ {playerMoney[pi]}
                   </div>
                 </div>
               ))}
@@ -490,9 +520,7 @@ function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResu
   // Nassau live
   return (
     <div>
-      <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, color: 'var(--gold)', marginBottom: 10 }}>
-        Placar Corrido
-      </h2>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: 16, color: 'var(--gold)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.5px' }}>Placar Corrido</div>
       {indivResults.map((res, mi) => {
         const [a, b] = pairs[mi]
         const m = indivMoney[mi]
