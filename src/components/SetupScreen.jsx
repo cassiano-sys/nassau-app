@@ -145,16 +145,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 borderRadius: 10, padding: '12px 14px',
                 borderLeft: `2px solid ${i < 2 ? '#4a7acc' : '#aa4444'}`,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: i < 2 ? '#6aaaee' : '#ee6666', fontWeight: 600, letterSpacing: '1px', minWidth: 60 }}>
-                    {i < 2 ? 'DUPLA A' : 'DUPLA B'}
+                {i === 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--gold)', letterSpacing: '1px', marginBottom: 8 }}>
+                    ★ Você
                   </div>
-                  {i === 0 && (
-                    <div style={{ fontSize: 10, color: 'var(--gold)', letterSpacing: '1px' }}>
-                      ★ Você
-                    </div>
-                  )}
-                </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input
                     style={{ ...inputStyle, flex: 1 }}
