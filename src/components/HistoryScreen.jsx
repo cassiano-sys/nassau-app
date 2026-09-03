@@ -47,6 +47,8 @@ export function RankingScreen({ onBack, session }) {
     return d ? d >= h2hSince : true // sem data conhecida → não exclui (rodadas antigas)
   }
 
+  const myFirstName = firstNameLower(session?.user?.user_metadata?.full_name || '')
+
   // Ranking geral — agrupa por primeiro nome
   const ranking = useMemo(() => {
     const map = {}
@@ -113,13 +115,31 @@ export function RankingScreen({ onBack, session }) {
 
   const fmt = (v) => `${v > 0 ? '+' : ''}R$ ${v}`
 
+  // H2H é pessoal: só confrontos que incluem o usuário logado.
+  // Sem nome de perfil definido, mostra tudo (fallback) em vez de esconder tudo.
+  const h2hMine = useMemo(() => {
+    if (!myFirstName) return h2h
+    return h2h.filter(h =>
+      firstNameLower(h.nameA) === myFirstName || firstNameLower(h.nameB) === myFirstName
+    )
+  }, [h2h, myFirstName])
+
   const h2hFiltered = useMemo(() => {
     const q = h2hSearch.trim().toLowerCase()
-    if (!q) return h2h
-    return h2h.filter(h =>
+    if (!q) return h2hMine
+    return h2hMine.filter(h =>
       h.nameA.toLowerCase().includes(q) || h.nameB.toLowerCase().includes(q)
     )
-  }, [h2h, h2hSearch])
+  }, [h2hMine, h2hSearch])
+
+  // Saldo do usuário (positivo a favor dele) somado sobre os confrontos exibidos —
+  // respeita o período selecionado e, se houver busca, o(s) adversário(s) filtrado(s).
+  const h2hTotal = useMemo(() => {
+    return h2hFiltered.reduce((acc, h) => {
+      const mine = !myFirstName || firstNameLower(h.nameA) === myFirstName ? h.balance : -h.balance
+      return { valor: acc.valor + mine, jogos: acc.jogos + h.jogos }
+    }, { valor: 0, jogos: 0 })
+  }, [h2hFiltered, myFirstName])
 
   return (
     <div className="screen">
@@ -171,12 +191,29 @@ export function RankingScreen({ onBack, session }) {
                   onClick={() => setH2hPeriod(v)}>{l}</button>
               ))}
             </div>
+
+            {/* Saldo somado do período (+ adversário buscado, se houver) */}
+            {h2hFiltered.length > 0 && (
+              <div className="card" style={{ marginBottom: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 2 }}>
+                    Seu saldo {h2hSearch.trim() ? `vs "${h2hSearch.trim()}"` : ''} · {{all:'Todos os jogos',week:'Última semana',month:'Último mês',year:'Este ano'}[h2hPeriod]}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{h2hTotal.jogos} confronto{h2hTotal.jogos !== 1 ? 's' : ''}</div>
+                </div>
+                <div className={h2hTotal.valor > 0 ? 'pos' : h2hTotal.valor < 0 ? 'neg' : 'neu'}
+                  style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 700 }}>
+                  {fmt(h2hTotal.valor)}
+                </div>
+              </div>
+            )}
+
             {matchups.length === 0 && (
               <div style={{ padding: '8px 0 14px', fontSize: 12, color: 'var(--muted)' }}>
                 ℹ️ Rodadas antigas usam cálculo aproximado. Novas rodadas terão H2H exato.
               </div>
             )}
-            {h2h.length === 0 ? (
+            {h2hMine.length === 0 ? (
               <div className="empty-state"><div className="icon">⚔️</div>
                 <p>{h2hPeriod === 'all' ? 'Nenhum confronto registrado.' : 'Nenhum confronto neste período.'}</p>
               </div>
