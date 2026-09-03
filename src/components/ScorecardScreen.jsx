@@ -215,6 +215,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       }
 
       setSaved(true)
+      // Avança direto para o Modo Apresentação — sem tela intermediária
+      window._nassauPresentation = { players, playerMoney, course, tLA, tLB }
+      onFinish('presentation')
+      return
     } catch (e) {
       console.error('Save error:', e)
     }
@@ -467,40 +471,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             </div>
           </div>
 
-          {/* Save */}
-          {!saved ? (
-            <button className="btn-green" onClick={saveRound} disabled={saving}
-              style={{ marginBottom: 10 }}>
-              {saving ? 'Salvando...' : '💾  Salvar rodada'}
-            </button>
-          ) : (
-            <>
-              <div style={{
-                textAlign: 'center', padding: 13, color: 'var(--green)',
-                fontWeight: 600, background: 'rgba(45,90,45,0.15)',
-                borderRadius: 'var(--r)', border: '0.5px solid rgba(93,186,122,0.3)',
-                marginBottom: 10, fontSize: 14, letterSpacing: '0.5px',
-              }}>
-                ✅  Rodada salva!
-              </div>
-              <button
-                onClick={() => {
-                  window._nassauPresentation = { players, playerMoney, course, tLA, tLB }
-                  onFinish('presentation')
-                }}
-                style={{
-                  width: '100%', padding: 13,
-                  background: 'rgba(201,168,76,0.07)',
-                  border: '0.5px solid var(--border-gold)',
-                  borderRadius: 'var(--r)', color: 'var(--gold)',
-                  fontFamily: 'var(--sans)', fontSize: 14, fontWeight: 500,
-                  cursor: 'pointer', letterSpacing: '0.5px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}>
-                📺  Modo Apresentação
-              </button>
-            </>
-          )}
+          {/* Save — ao concluir, segue direto para o Modo Apresentação */}
+          <button className="btn-green" onClick={saveRound} disabled={saving || saved}
+            style={{ marginBottom: 10 }}>
+            {saving || saved ? 'Salvando...' : '💾  Salvar rodada'}
+          </button>
         </div>
       )}
     </div>
@@ -735,21 +710,36 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
       <HalfTable startH={1}  label="Front 9" parSum={parF9}/>
       <HalfTable startH={10} label="Back 9"  parSum={parB9}/>
 
-      {/* Totais */}
+      {/* Totais — Front 9 / Back 9 / Total 18 juntos, sem precisar rolar a tela */}
       <div style={{ borderTop:'0.5px solid var(--border)', paddingTop:12 }}>
-        <div style={{ fontSize:10, color:'var(--gold)', letterSpacing:'2px', textTransform:'uppercase', marginBottom:8, fontWeight:600 }}>Total 18</div>
+        <div style={{ fontSize:10, color:'var(--gold)', letterSpacing:'2px', textTransform:'uppercase', marginBottom:8, fontWeight:600 }}>Totais</div>
         <div style={{ display:'grid', gridTemplateColumns:`repeat(${players.length},1fr)`, gap:6 }}>
           {players.map((p,pi)=>{
             const st=playerStats[pi], played=st.f9C+st.b9C
             return (
-              <div key={pi} style={{ textAlign:'center', padding:'12px 6px', background:'rgba(0,0,0,0.2)', borderRadius:10,
+              <div key={pi} style={{ textAlign:'center', padding:'10px 4px', background:'rgba(0,0,0,0.2)', borderRadius:10,
                 border:`0.5px solid ${teamA.includes(pi)?'rgba(106,170,238,0.2)':'rgba(238,102,102,0.2)'}` }}>
-                <div style={{ fontSize:11, fontWeight:700, color:teamA.includes(pi)?'#6aaaee':'#ee6666', marginBottom:6 }}>{p.name}</div>
-                <div style={{ fontFamily:'var(--serif)', fontSize:26, fontWeight:700, color:'var(--cream)', lineHeight:1 }}>{played?st.totG:'–'}</div>
-                <div style={{ fontSize:9, color:'var(--muted2)', marginTop:2, letterSpacing:'1px', textTransform:'uppercase' }}>gross</div>
+                <div style={{ fontSize:11, fontWeight:700, color:teamA.includes(pi)?'#6aaaee':'#ee6666', marginBottom:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.name}</div>
+
+                {/* Front 9 / Back 9 — lado a lado, discreto */}
+                <div style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:8 }}>
+                  <div>
+                    <div style={{ fontFamily:'var(--serif)', fontSize:16, fontWeight:700, color:'var(--cream)', lineHeight:1 }}>{st.f9C?st.f9G:'–'}</div>
+                    <div style={{ fontSize:8, color:'var(--muted2)', letterSpacing:'0.5px', textTransform:'uppercase' }}>F9</div>
+                  </div>
+                  <div style={{ width:'0.5px', background:'var(--border)' }}/>
+                  <div>
+                    <div style={{ fontFamily:'var(--serif)', fontSize:16, fontWeight:700, color:'var(--cream)', lineHeight:1 }}>{st.b9C?st.b9G:'–'}</div>
+                    <div style={{ fontSize:8, color:'var(--muted2)', letterSpacing:'0.5px', textTransform:'uppercase' }}>B9</div>
+                  </div>
+                </div>
+
+                {/* Total 18 — número principal */}
+                <div style={{ fontFamily:'var(--serif)', fontSize:26, fontWeight:700, color:'var(--gold)', lineHeight:1 }}>{played?st.totG:'–'}</div>
+                <div style={{ fontSize:9, color:'var(--muted2)', marginTop:2, letterSpacing:'1px', textTransform:'uppercase' }}>total gross</div>
                 {played>0&&<>
                   <div style={{ fontFamily:'var(--serif)', fontSize:18, fontWeight:700, color:'var(--green)', marginTop:6 }}>{st.totN}</div>
-                  <div style={{ fontSize:9, color:'var(--muted2)', letterSpacing:'1px', textTransform:'uppercase' }}>net</div>
+                  <div style={{ fontSize:9, color:'var(--muted2)', letterSpacing:'1px', textTransform:'uppercase' }}>total net</div>
                 </>}
               </div>
             )
@@ -913,8 +903,8 @@ function ResultDetailRow({ label, seg, money, nA, nB, unit }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 10, color: 'var(--muted2)', marginBottom: 4, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--cream)', paddingLeft: 8, marginBottom: 2 }}>
-        <span>Principal: <strong>{seg.mainScore === 0 ? 'AS' : `${w} ${seg.mainScore > 0 ? '+' : ''}${seg.mainScore}`}</strong></span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted2)', paddingLeft: 8, marginBottom: 2 }}>
+        <span>Principal: <strong style={{ color: seg.mainScore > 0 ? '#7ab5f0' : seg.mainScore < 0 ? '#f07a7a' : 'var(--muted)' }}>{seg.mainScore === 0 ? 'AS' : `${w} ${seg.mainScore > 0 ? '+' : ''}${seg.mainScore}`}</strong></span>
         <span className={money.main > 0 ? 'pos' : money.main < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 700 }}>{money.main > 0 ? '+' : ''}R${Math.abs(money.main)}</span>
       </div>
       {seg.pressScores.map((ps, i) => {
@@ -922,7 +912,7 @@ function ResultDetailRow({ label, seg, money, nA, nB, unit }) {
         const pMoney = Math.sign(ps) * unit
         return (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted2)', paddingLeft: 8, marginBottom: 2 }}>
-            <span>Press {i+1}: <strong style={{ color: ps !== 0 ? 'var(--cream)' : 'var(--muted2)' }}>{ps === 0 ? 'AS' : `${pw} ${ps > 0 ? '+' : ''}${ps}`}</strong></span>
+            <span>Press {i+1}: <strong style={{ color: ps > 0 ? '#7ab5f0' : ps < 0 ? '#f07a7a' : 'var(--muted)' }}>{ps === 0 ? 'AS' : `${pw} ${ps > 0 ? '+' : ''}${ps}`}</strong></span>
             <span className={pMoney > 0 ? 'pos' : pMoney < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontWeight: 700 }}>{pMoney > 0 ? '+' : ''}R${Math.abs(pMoney)}</span>
           </div>
         )
