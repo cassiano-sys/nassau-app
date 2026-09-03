@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 function firstNameLower(fullName) {
@@ -382,6 +382,49 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
 
+  // ── Calibração de caligrafia (amostra dos números 0-9) ──
+  const [hwSample,  setHwSample]  = useState(null)   // amostra já salva (base64)
+  const [hwPreview, setHwPreview] = useState(null)   // foto nova, ainda não salva
+  const [hwB64,     setHwB64]     = useState(null)
+  const [hwLoading, setHwLoading] = useState(true)
+  const [hwSaving,  setHwSaving]  = useState(false)
+  const [hwSaved,   setHwSaved]   = useState(false)
+  const hwFileRef = useRef()
+
+  useEffect(() => {
+    if (!session?.user?.id) { setHwLoading(false); return }
+    supabase.from('handwriting_samples').select('image_base64').eq('user_id', session.user.id).maybeSingle()
+      .then(({ data }) => { setHwSample(data?.image_base64 || null); setHwLoading(false) })
+  }, [session?.user?.id])
+
+  const handleHwSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setHwPreview(ev.target.result)
+      setHwB64(ev.target.result.split(',')[1])
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const saveHandwriting = async () => {
+    if (!hwB64 || !session?.user?.id) return
+    setHwSaving(true)
+    await supabase.from('handwriting_samples').upsert({
+      user_id: session.user.id, image_base64: hwB64, updated_at: new Date().toISOString(),
+    })
+    setHwSample(hwB64); setHwPreview(null); setHwB64(null)
+    setHwSaving(false); setHwSaved(true)
+    setTimeout(() => setHwSaved(false), 2000)
+  }
+
+  const removeHandwriting = async () => {
+    if (!session?.user?.id) return
+    await supabase.from('handwriting_samples').delete().eq('user_id', session.user.id)
+    setHwSample(null)
+  }
+
   const handleSave = async () => {
     setSaving(true)
     await supabase.auth.updateUser({ data: { full_name: name, handicap: hcp } })
@@ -430,6 +473,44 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
             </button>
           )}
         </div>
+        <div className="card" style={{ borderColor: 'rgba(68,136,204,0.25)' }}>
+          <h2>Calibração de leitura (IA)</h2>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.7 }}>
+            Escreva os números de 0 a 9, em ordem, numa folha de papel e fotografe. A IA usa essa amostra como referência para ler os cartões deste grupo com mais precisão.
+          </p>
+
+          {hwLoading ? (
+            <p style={{ fontSize: 12, color: 'var(--muted)' }}>Carregando...</p>
+          ) : hwPreview ? (
+            <>
+              <img src={hwPreview} alt="Amostra de caligrafia" className="photo-preview"/>
+              <button className="btn-primary" onClick={saveHandwriting} disabled={hwSaving} style={{ marginBottom: 10 }}>
+                {hwSaving ? 'Salvando...' : '✓  Salvar calibração'}
+              </button>
+              <button className="btn-secondary" onClick={() => { setHwPreview(null); setHwB64(null) }}>
+                Cancelar
+              </button>
+            </>
+          ) : hwSaved ? (
+            <div style={{ textAlign: 'center', color: 'var(--green2)', fontWeight: 600, padding: 10 }}>✅ Calibração salva!</div>
+          ) : hwSample ? (
+            <>
+              <img src={`data:image/jpeg;base64,${hwSample}`} alt="Amostra de caligrafia" className="photo-preview"/>
+              <button className="photo-btn" onClick={() => hwFileRef.current?.click()} style={{ marginBottom: 8 }}>
+                📷  Trocar foto
+              </button>
+              <button className="btn-danger" style={{ width: '100%', padding: 12 }} onClick={removeHandwriting}>
+                Remover calibração
+              </button>
+            </>
+          ) : (
+            <button className="photo-btn" onClick={() => hwFileRef.current?.click()} style={{ marginBottom: 0 }}>
+              📷  Fotografar números 0-9
+            </button>
+          )}
+          <input ref={hwFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHwSelect}/>
+        </div>
+
         <div className="card">
           <h2>Conta</h2>
           <div style={{ fontSize:13, color:'var(--muted)', marginBottom:14 }}>
