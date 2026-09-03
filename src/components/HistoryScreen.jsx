@@ -11,6 +11,7 @@ export function RankingScreen({ onBack, session }) {
   const [matchups,  setMatchups] = useState([])
   const [loading,   setLoading]  = useState(true)
   const [tab,       setTab]      = useState('global')
+  const [h2hSearch, setH2hSearch] = useState('')
 
   useEffect(() => { loadData() }, [])
 
@@ -90,6 +91,14 @@ export function RankingScreen({ onBack, session }) {
 
   const fmt = (v) => `${v > 0 ? '+' : ''}R$ ${v}`
 
+  const h2hFiltered = useMemo(() => {
+    const q = h2hSearch.trim().toLowerCase()
+    if (!q) return h2h
+    return h2h.filter(h =>
+      h.nameA.toLowerCase().includes(q) || h.nameB.toLowerCase().includes(q)
+    )
+  }, [h2h, h2hSearch])
+
   return (
     <div className="screen">
       <header className="app-header">
@@ -127,6 +136,13 @@ export function RankingScreen({ onBack, session }) {
               <h2>Confrontos Diretos</h2>
               <p>Resultado acumulado de confrontos individuais</p>
             </div>
+            <input
+              className="text-input"
+              style={{ marginBottom: 14 }}
+              placeholder="🔍  Buscar jogador..."
+              value={h2hSearch}
+              onChange={e => setH2hSearch(e.target.value)}
+            />
             {matchups.length === 0 && (
               <div style={{ padding: '8px 0 14px', fontSize: 12, color: 'var(--muted)' }}>
                 ℹ️ Rodadas antigas usam cálculo aproximado. Novas rodadas terão H2H exato.
@@ -134,7 +150,9 @@ export function RankingScreen({ onBack, session }) {
             )}
             {h2h.length === 0 ? (
               <div className="empty-state"><div className="icon">⚔️</div><p>Nenhum confronto registrado.</p></div>
-            ) : h2h.map((h, i) => {
+            ) : h2hFiltered.length === 0 ? (
+              <div className="empty-state"><div className="icon">🔍</div><p>Nenhum confronto encontrado para "{h2hSearch}".</p></div>
+            ) : h2hFiltered.map((h, i) => {
               const winner = h.balance > 0 ? h.nameA : h.balance < 0 ? h.nameB : null
               const loser  = h.balance > 0 ? h.nameB : h.balance < 0 ? h.nameA : null
               const amt    = Math.abs(h.balance)
