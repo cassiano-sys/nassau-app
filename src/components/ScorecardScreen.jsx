@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
@@ -9,11 +9,11 @@ import {
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
 
-async function readCardWithVision(imageBase64, players, si, par) {
+async function readCardWithVision(imageBase64, players, si, par, handwritingBase64) {
   const response = await fetch('/api/read-card', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageBase64, players, si, par }),
+    body: JSON.stringify({ imageBase64, players, si, par, handwritingBase64 }),
   })
   if (!response.ok) throw new Error('Erro na leitura: ' + response.status)
   return await response.json()
@@ -38,6 +38,15 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   const [photoResult, setPhotoResult] = useState(null)
   const [photoError, setPhotoError] = useState('')
   const fileRef = useRef()
+  const [handwritingB64, setHandwritingB64] = useState(null)
+
+  // Carrega a amostra de caligrafia cadastrada no Perfil (se houver), para
+  // ajudar a IA a calibrar a leitura dos números deste cartão
+  useEffect(() => {
+    if (!session?.user?.id) return
+    supabase.from('handwriting_samples').select('image_base64').eq('user_id', session.user.id).maybeSingle()
+      .then(({ data }) => { if (data?.image_base64) setHandwritingB64(data.image_base64) })
+  }, [session?.user?.id])
 
   const lowestHcp = Math.min(...players.map(p => p.handicap))
 
@@ -127,7 +136,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     if (!photoB64) return
     setProcessing(true); setPhotoError('')
     try {
-      const result = await readCardWithVision(photoB64, players, si, par)
+      const result = await readCardWithVision(photoB64, players, si, par, handwritingB64)
       setPhotoResult(result)
     } catch (e) {
       // Even on error, show an empty editable table so user can fill manually
@@ -247,7 +256,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
               <button className="photo-btn" onClick={() => fileRef.current?.click()}>
                 📷 Selecionar foto
               </button>
-              <input ref={fileRef} type="file" accept="image/*" capture="environment"
+              <input ref={fileRef} type="file" accept="image/*"
                 style={{ display: 'none' }} onChange={handlePhotoSelect}/>
             </div>
             <div className="card" style={{ borderColor: 'rgba(68,136,204,0.3)' }}>
