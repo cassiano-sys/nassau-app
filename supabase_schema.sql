@@ -27,9 +27,29 @@ create table if not exists round_players (
   created_at   timestamptz default now()
 );
 
+-- Round matchups table (individual and team head-to-head results per round,
+-- used for the exact H2H ranking; needed by round_matchups inserts in
+-- ScorecardScreen.jsx and reads in HistoryScreen.jsx's RankingScreen)
+create table if not exists round_matchups (
+  id          uuid default gen_random_uuid() primary key,
+  round_id    uuid references rounds(id) on delete cascade,
+  type        text not null default 'individual', -- 'individual' | 'team'
+  player_a    text not null,
+  player_b    text not null,
+  team_a      text,  -- only set when type = 'team' (e.g. "Ana/Bruno")
+  team_b      text,  -- only set when type = 'team'
+  result_a    numeric default 0,  -- amount A won from B (negative = A lost)
+  result_b    numeric default 0,  -- always -result_a
+  front_a     numeric default 0,
+  back_a      numeric default 0,
+  total_a     numeric default 0,
+  created_at  timestamptz default now()
+);
+
 -- Enable Row Level Security
-alter table rounds        enable row level security;
-alter table round_players enable row level security;
+alter table rounds          enable row level security;
+alter table round_players   enable row level security;
+alter table round_matchups  enable row level security;
 
 -- Policies: anyone authenticated can read all rounds (for ranking)
 create policy "Anyone can read rounds"
@@ -46,9 +66,19 @@ create policy "Users can insert round_players"
     exists (select 1 from rounds where id = round_id and user_id = auth.uid())
   );
 
+create policy "Anyone can read round_matchups"
+  on round_matchups for select using (auth.role() = 'authenticated');
+
+create policy "Users can insert round_matchups"
+  on round_matchups for insert with check (
+    exists (select 1 from rounds where id = round_id and user_id = auth.uid())
+  );
+
 -- Indexes for performance
 create index if not exists idx_rounds_user_id    on rounds(user_id);
 create index if not exists idx_rounds_played_at  on rounds(played_at desc);
 create index if not exists idx_rp_round_id       on round_players(round_id);
 create index if not exists idx_rp_user_id        on round_players(user_id);
 create index if not exists idx_rp_player_name    on round_players(player_name);
+create index if not exists idx_rm_round_id       on round_matchups(round_id);
+create index if not exists idx_rm_type           on round_matchups(type);
