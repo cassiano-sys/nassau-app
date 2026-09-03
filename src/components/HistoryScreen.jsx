@@ -7,23 +7,44 @@ function firstNameLower(fullName) {
 }
 
 export function RankingScreen({ onBack, session }) {
-  const [players,   setPlayers]  = useState([])
-  const [matchups,  setMatchups] = useState([])
-  const [loading,   setLoading]  = useState(true)
-  const [tab,       setTab]      = useState('global')
-  const [h2hSearch, setH2hSearch] = useState('')
+  const [players,    setPlayers]    = useState([])
+  const [matchups,   setMatchups]   = useState([])
+  const [roundDates, setRoundDates] = useState({}) // round_id -> played_at (Date)
+  const [loading,    setLoading]    = useState(true)
+  const [tab,        setTab]        = useState('global')
+  const [h2hSearch,  setH2hSearch]  = useState('')
+  const [h2hPeriod,  setH2hPeriod]  = useState('all') // all | week | month | year
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: pData }, { data: mData }] = await Promise.all([
+    const [{ data: pData }, { data: mData }, { data: rData }] = await Promise.all([
       supabase.from('round_players').select('player_name, money_result, handicap, team, round_id'),
       supabase.from('round_matchups').select('*'),
+      supabase.from('rounds').select('id, played_at'),
     ])
     setPlayers(pData || [])
     setMatchups(mData || [])
+    const dates = {}
+    ;(rData || []).forEach(r => { dates[r.id] = new Date(r.played_at) })
+    setRoundDates(dates)
     setLoading(false)
+  }
+
+  // Data de corte do período selecionado para o H2H (null = sem filtro)
+  const h2hSince = useMemo(() => {
+    const now = new Date()
+    if (h2hPeriod === 'week')  { const d = new Date(now); d.setDate(d.getDate() - 7);  return d }
+    if (h2hPeriod === 'month') { const d = new Date(now); d.setDate(d.getDate() - 30); return d }
+    if (h2hPeriod === 'year')  { return new Date(now.getFullYear(), 0, 1) }
+    return null // 'all'
+  }, [h2hPeriod])
+
+  const inPeriod = (roundId) => {
+    if (!h2hSince) return true
+    const d = roundDates[roundId]
+    return d ? d >= h2hSince : true // sem data conhecida → não exclui (rodadas antigas)
   }
 
   // Ranking geral — agrupa por primeiro nome
@@ -52,7 +73,7 @@ export function RankingScreen({ onBack, session }) {
     // Usa matchups se disponíveis, senão fallback para cálculo por team
     if (matchups.length > 0) {
       const map = {}
-      matchups.filter(m => m.type === 'individual').forEach(m => {
+      matchups.filter(m => m.type === 'individual' && inPeriod(m.round_id)).forEach(m => {
         const keyA = firstNameLower(m.player_a)
         const keyB = firstNameLower(m.player_b)
         const key  = [keyA, keyB].sort().join('|||')
@@ -67,6 +88,7 @@ export function RankingScreen({ onBack, session }) {
     // Fallback: calcula por team (rodadas antigas sem matchups)
     const byRound = {}
     ;(players || []).forEach(p => {
+      if (!inPeriod(p.round_id)) return
       if (!byRound[p.round_id]) byRound[p.round_id] = []
       byRound[p.round_id].push(p)
     })
@@ -87,7 +109,7 @@ export function RankingScreen({ onBack, session }) {
       })
     })
     return Object.values(map).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
-  }, [matchups, players])
+  }, [matchups, players, roundDates, h2hSince])
 
   const fmt = (v) => `${v > 0 ? '+' : ''}R$ ${v}`
 
@@ -138,18 +160,26 @@ export function RankingScreen({ onBack, session }) {
             </div>
             <input
               className="text-input"
-              style={{ marginBottom: 14 }}
+              style={{ marginBottom: 10 }}
               placeholder="🔍  Buscar jogador..."
               value={h2hSearch}
               onChange={e => setH2hSearch(e.target.value)}
             />
+            <div className="toggle-row" style={{ marginBottom: 14 }}>
+              {[['all','Todos'],['week','Semana'],['month','Mês'],['year','Ano']].map(([v,l]) => (
+                <button key={v} className={`toggle-btn${h2hPeriod===v?' active':''}`}
+                  onClick={() => setH2hPeriod(v)}>{l}</button>
+              ))}
+            </div>
             {matchups.length === 0 && (
               <div style={{ padding: '8px 0 14px', fontSize: 12, color: 'var(--muted)' }}>
                 ℹ️ Rodadas antigas usam cálculo aproximado. Novas rodadas terão H2H exato.
               </div>
             )}
             {h2h.length === 0 ? (
-              <div className="empty-state"><div className="icon">⚔️</div><p>Nenhum confronto registrado.</p></div>
+              <div className="empty-state"><div className="icon">⚔️</div>
+                <p>{h2hPeriod === 'all' ? 'Nenhum confronto registrado.' : 'Nenhum confronto neste período.'}</p>
+              </div>
             ) : h2hFiltered.length === 0 ? (
               <div className="empty-state"><div className="icon">🔍</div><p>Nenhum confronto encontrado para "{h2hSearch}".</p></div>
             ) : h2hFiltered.map((h, i) => {
