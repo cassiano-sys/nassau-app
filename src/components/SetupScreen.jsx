@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { COURSES } from '../lib/golf'
+import { supabase } from '../lib/supabase'
 
 const FORMATS = [
   { id: 'nassau',     label: 'Nassau',     icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
@@ -24,6 +25,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [playWithin, setPlayWithin] = useState(false)
   const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
   const [betUnit,    setBetUnit]    = useState(20)
+  const [savedPlayers, setSavedPlayers] = useState([]) // jogadores parceiros cadastrados
 
   // Pré-preenche Jogador 1 com dados do perfil logado
   useEffect(() => {
@@ -36,6 +38,15 @@ export default function SetupScreen({ onStart, onBack, session }) {
       ))
     }
   }, [session])
+
+  // Carrega os jogadores parceiros já cadastrados, para sugerir nos campos de nome
+  useEffect(() => {
+    if (!session?.user?.id) return
+    supabase.from('saved_players').select('name,handicap')
+      .eq('user_id', session.user.id)
+      .order('last_used_at', { ascending: false })
+      .then(({ data, error }) => { if (!error && data) setSavedPlayers(data) })
+  }, [session?.user?.id])
 
   const updPlayer = (i, f, v) =>
     setPlayers(prev => prev.map((p, pi) =>
@@ -55,6 +66,25 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const canStart = players.slice(0, numPlayers).every(p => p.name.trim())
 
   const handleStart = () => {
+    // Salva/atualiza os jogadores desta rodada como parceiros, pra sugerir
+    // o nome (e o handicap) da próxima vez que você montar um jogo. Não
+    // bloqueia o início da rodada — é feito em segundo plano.
+    if (session?.user?.id) {
+      const rows = players.slice(0, numPlayers)
+        .filter(p => p.name.trim())
+        .map(p => ({
+          user_id: session.user.id,
+          name: p.name.trim(),
+          handicap: p.handicap,
+          last_used_at: new Date().toISOString(),
+        }))
+      if (rows.length > 0) {
+        supabase.from('saved_players')
+          .upsert(rows, { onConflict: 'user_id,name' })
+          .then(() => {})
+      }
+    }
+
     onStart({
       format,
       players: players.slice(0, numPlayers),
@@ -151,11 +181,16 @@ export default function SetupScreen({ onStart, onBack, session }) {
                   </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
+                  <PlayerNameField
                     style={{ ...inputStyle, flex: 1 }}
                     placeholder={`Jogador ${i + 1}`}
                     value={players[i].name}
-                    onChange={e => updPlayer(i, 'name', e.target.value)}
+                    suggestions={savedPlayers}
+                    onChange={v => updPlayer(i, 'name', v)}
+                    onPick={s => {
+                      updPlayer(i, 'name', s.name)
+                      if (s.handicap !== null && s.handicap !== undefined) updPlayer(i, 'handicap', s.handicap)
+                    }}
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <span style={{ fontSize: 11, color: 'var(--muted2)', letterSpacing: '1px' }}>HCP</span>
@@ -298,6 +333,52 @@ export default function SetupScreen({ onStart, onBack, session }) {
         </button>
 
       </div>
+    </div>
+  )
+}
+
+// Campo de nome de jogador com sugestões dos parceiros já cadastrados
+// (tabela saved_players). Autocomplete próprio em vez de <datalist> porque
+// o Safari no iPhone não exibe as sugestões do datalist de forma confiável.
+function PlayerNameField({ style, placeholder, value, suggestions, onChange, onPick }) {
+  const [open, setOpen] = useState(false)
+
+  const q = value.trim().toLowerCase()
+  const filtered = (suggestions || [])
+    .filter(s => s.name.toLowerCase() !== q)
+    .filter(s => !q || s.name.toLowerCase().includes(q))
+    .slice(0, 6)
+
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        style={style}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
+          background: '#101a30', border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 10, marginTop: 4, maxHeight: 180, overflowY: 'auto',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+        }}>
+          {filtered.map(s => (
+            <div key={s.name}
+              onMouseDown={() => { onPick(s); setOpen(false) }}
+              style={{
+                padding: '9px 12px', fontSize: 13, color: 'var(--cream)', cursor: 'pointer',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+              <span>{s.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted2)' }}>HCP {s.handicap ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
