@@ -29,6 +29,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   const [tab, setTab]           = useState('card') // card | results
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
+  const [quickEntry, setQuickEntry] = useState(false) // grid completo em vez de buraco a buraco
 
   // Photo states
   const [photoMode, setPhotoMode]   = useState(false)
@@ -324,128 +325,140 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
       {tab === 'card' ? (
         <div className="screen-body">
-          {/* Photo button */}
-          <button className="photo-btn" onClick={() => setPhotoMode(true)}
-            style={{ marginBottom: 10, fontSize: 14, fontWeight: 600 }}>
-            📷  Foto do Cartão
-          </button>
-
-          {/* Hole nav */}
-          <div className="hole-nav">
-            {HOLES.map((h, i) => {
-              const filled = players.every((_, pi) => scores[pi][i] !== null)
-              return (
-                <button key={h}
-                  className={`hole-btn${activeHole === i ? ' active' : ''}${filled ? ' filled' : ''}`}
-                  onClick={() => setActiveHole(i)}>{h}</button>
-              )
-            })}
+          {/* Modo de lançamento */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button className="photo-btn" style={{ flex: 1, fontSize: 13, fontWeight: 600 }}
+              onClick={() => setQuickEntry(q => !q)}>
+              {quickEntry ? '🎯  Buraco a buraco' : '⌨️  Digitação rápida'}
+            </button>
+            <button className="photo-btn" style={{ flex: 1, fontSize: 13, fontWeight: 600 }}
+              onClick={() => setPhotoMode(true)}>
+              📷  Foto do Cartão
+            </button>
           </div>
 
-          {/* Hole input card */}
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div>
-                <span style={{ fontFamily: 'var(--serif)', fontSize: 22, color: 'var(--gold)', fontWeight: 600 }}>
-                  Buraco {activeHole + 1}
-                </span>
-                <span style={{ fontSize: 10, color: 'var(--muted2)', marginLeft: 8, letterSpacing: '0.5px' }}>
-                  {activeHole < 9 ? 'Front 9' : 'Back 9'}
-                </span>
+          {quickEntry ? (
+            <QuickEntryGrid players={players} scores={scores} par={par} onUpdate={upd}/>
+          ) : (
+            <>
+              {/* Hole nav */}
+              <div className="hole-nav">
+                {HOLES.map((h, i) => {
+                  const filled = players.every((_, pi) => scores[pi][i] !== null)
+                  return (
+                    <button key={h}
+                      className={`hole-btn${activeHole === i ? ' active' : ''}${filled ? ' filled' : ''}`}
+                      onClick={() => setActiveHole(i)}>{h}</button>
+                  )
+                })}
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 13, color: 'var(--cream)', fontFamily: 'var(--serif)', fontWeight: 700 }}>
-                  Par {par[activeHole]}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.5px' }}>
-                  SI {si[activeHole]}
-                </div>
-              </div>
-            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {players.map((p, pi) => {
-                const strokes = getStrokesGlobal(p.handicap, lowestHcp, si, activeHole)
-                const g       = scores[pi][activeHole]
-                const isSet   = g !== null
-                const net     = isSet ? g - strokes : null
-                const holePar = par[activeHole]
-                const diff    = isSet ? g - holePar : null
-                const diffLabel = diff === null ? '' : diff === 0 ? 'E' : diff > 0 ? `+${diff}` : String(diff)
-                const diffCls   = diff === null ? '' : diff < 0 ? 'under' : diff === 0 ? 'even' : 'over'
-
-                // Score color class
-                const scoreColorCls = isSet
-                  ? diff <= -2 ? 'eagle' : diff === -1 ? 'birdie'
-                  : diff === 1 ? 'bogey' : diff >= 2 ? 'double' : ''
-                  : ''
-                return (
-                  <div key={pi} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 12px', borderRadius: 10,
-                    background: 'rgba(0,0,0,0.2)',
-                    borderLeft: `2px solid ${teamA.includes(pi) ? '#4a7acc' : '#aa4444'}`,
-                    marginBottom: 6,
-                  }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cream)', letterSpacing: '0.3px' }}>{p.name}</div>
-                      <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 2, letterSpacing: '0.3px' }}>
-                        HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : ' · scratch'}
-                      </div>
+              {/* Hole input card */}
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <span style={{ fontFamily: 'var(--serif)', fontSize: 22, color: 'var(--gold)', fontWeight: 600 }}>
+                      Buraco {activeHole + 1}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--muted2)', marginLeft: 8, letterSpacing: '0.5px' }}>
+                      {activeHole < 9 ? 'Front 9' : 'Back 9'}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, color: 'var(--cream)', fontFamily: 'var(--serif)', fontWeight: 700 }}>
+                      Par {par[activeHole]}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button className="adj-btn"
-                        onClick={() => upd(pi, activeHole, isSet ? g - 1 : holePar - 1)}>−</button>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                        {isSet ? (
-                          <>
-                            <input type="number" min="1" max="20"
-                              className={`score-input-set ${scoreColorCls}`}
-                              value={g}
-                              onChange={e => upd(pi, activeHole, e.target.value === '' ? null : e.target.value)}
-                            />
-                            <span className={`pardiff ${diffCls}`}>{diffLabel}</span>
-                          </>
-                        ) : (
-                          <div className="score-unset" onClick={() => upd(pi, activeHole, holePar)}>
-                            <span className="unset-par">{holePar}</span>
-                            <span className="unset-label">par</span>
-                          </div>
-                        )}
-                      </div>
-                      <button className="adj-btn"
-                        onClick={() => upd(pi, activeHole, isSet ? g + 1 : holePar + 1)}>+</button>
-                      {net !== null && (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 }}>
-                          <span style={{ fontSize: 11, color: 'var(--gold)', fontFamily: 'var(--serif)', fontWeight: 700 }}>
-                            {net}
-                          </span>
-                          <span style={{ fontSize: 8, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>net</span>
-                        </div>
-                      )}
+                    <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: '0.5px' }}>
+                      SI {si[activeHole]}
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button className="back-btn" style={{ flex: 1, opacity: activeHole === 0 ? 0.3 : 1 }}
-                onClick={() => setActiveHole(h => Math.max(0, h - 1))} disabled={activeHole === 0}>
-                ← Anterior
-              </button>
-              <button className="back-btn" style={{
-                flex: 1,
-                background: activeHole < 17 ? 'rgba(201,168,76,0.08)' : 'transparent',
-                borderColor: activeHole < 17 ? 'var(--border-gold)' : 'rgba(255,255,255,0.1)',
-                color: activeHole < 17 ? 'var(--gold)' : 'var(--muted)',
-                opacity: activeHole === 17 ? 0.3 : 1
-              }}
-                onClick={() => setActiveHole(h => Math.min(17, h + 1))} disabled={activeHole === 17}>
-                Próximo →
-              </button>
-            </div>
-          </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {players.map((p, pi) => {
+                    const strokes = getStrokesGlobal(p.handicap, lowestHcp, si, activeHole)
+                    const g       = scores[pi][activeHole]
+                    const isSet   = g !== null
+                    const net     = isSet ? g - strokes : null
+                    const holePar = par[activeHole]
+                    const diff    = isSet ? g - holePar : null
+                    const diffLabel = diff === null ? '' : diff === 0 ? 'E' : diff > 0 ? `+${diff}` : String(diff)
+                    const diffCls   = diff === null ? '' : diff < 0 ? 'under' : diff === 0 ? 'even' : 'over'
+
+                    // Score color class
+                    const scoreColorCls = isSet
+                      ? diff <= -2 ? 'eagle' : diff === -1 ? 'birdie'
+                      : diff === 1 ? 'bogey' : diff >= 2 ? 'double' : ''
+                      : ''
+                    return (
+                      <div key={pi} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 12px', borderRadius: 10,
+                        background: 'rgba(0,0,0,0.2)',
+                        borderLeft: `2px solid ${teamA.includes(pi) ? '#4a7acc' : '#aa4444'}`,
+                        marginBottom: 6,
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cream)', letterSpacing: '0.3px' }}>{p.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 2, letterSpacing: '0.3px' }}>
+                            HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : ' · scratch'}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <button className="adj-btn"
+                            onClick={() => upd(pi, activeHole, isSet ? g - 1 : holePar - 1)}>−</button>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                            {isSet ? (
+                              <>
+                                <input type="number" min="1" max="20"
+                                  className={`score-input-set ${scoreColorCls}`}
+                                  value={g}
+                                  onChange={e => upd(pi, activeHole, e.target.value === '' ? null : e.target.value)}
+                                />
+                                <span className={`pardiff ${diffCls}`}>{diffLabel}</span>
+                              </>
+                            ) : (
+                              <div className="score-unset" onClick={() => upd(pi, activeHole, holePar)}>
+                                <span className="unset-par">{holePar}</span>
+                                <span className="unset-label">par</span>
+                              </div>
+                            )}
+                          </div>
+                          <button className="adj-btn"
+                            onClick={() => upd(pi, activeHole, isSet ? g + 1 : holePar + 1)}>+</button>
+                          {net !== null && (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 36 }}>
+                              <span style={{ fontSize: 11, color: 'var(--gold)', fontFamily: 'var(--serif)', fontWeight: 700 }}>
+                                {net}
+                              </span>
+                              <span style={{ fontSize: 8, color: 'var(--muted)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>net</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                  <button className="back-btn" style={{ flex: 1, opacity: activeHole === 0 ? 0.3 : 1 }}
+                    onClick={() => setActiveHole(h => Math.max(0, h - 1))} disabled={activeHole === 0}>
+                    ← Anterior
+                  </button>
+                  <button className="back-btn" style={{
+                    flex: 1,
+                    background: activeHole < 17 ? 'rgba(201,168,76,0.08)' : 'transparent',
+                    borderColor: activeHole < 17 ? 'var(--border-gold)' : 'rgba(255,255,255,0.1)',
+                    color: activeHole < 17 ? 'var(--gold)' : 'var(--muted)',
+                    opacity: activeHole === 17 ? 0.3 : 1
+                  }}
+                    onClick={() => setActiveHole(h => Math.min(17, h + 1))} disabled={activeHole === 17}>
+                    Próximo →
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Live scores */}
           <LiveScores format={format} pairs={pairs} players={players} indivResults={indivResults}
@@ -769,6 +782,66 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
   )
 }
 // ── PhotoConfirm — editable confirmation after card reading ───────────────────
+// Digitação rápida: grid completo (18 buracos x jogadores) editável direto,
+// sem precisar passar por foto. Usa a mesma UI de grid do PhotoConfirm,
+// mas escreve direto no estado `scores` do componente pai via onUpdate (= upd).
+function QuickEntryGrid({ players, scores, par, onUpdate }) {
+  return (
+    <div className="card" style={{ marginBottom: 14 }}>
+      <h2>Digitação rápida</h2>
+      <p style={{ fontSize: 12, color: 'var(--gold)', marginBottom: 12 }}>
+        Toque em qualquer número pra editar. Campo em branco = buraco não jogado.
+      </p>
+
+      {players.map((p, pi) => (
+        <div key={pi} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: pi % 2 === 0 ? '#7ab5f0' : '#f07a7a', marginBottom: 6 }}>
+            {p.name} — HCP {p.handicap}
+          </div>
+          <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted)' }}>Front 9</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 3, marginBottom: 6 }}>
+            {Array.from({length:9},(_,hi) => (
+              <div key={hi} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:2 }}>
+                <div style={{fontSize:9,color:'var(--muted)'}}>B{hi+1}<br/>p{par[hi]}</div>
+                <input type="number" min="1" max="20"
+                  value={scores[pi]?.[hi] ?? ''}
+                  onChange={e => onUpdate(pi, hi, e.target.value)}
+                  placeholder="–"
+                  style={{
+                    width:'100%', height:32, textAlign:'center', fontSize:13, fontWeight:700,
+                    background: scores[pi]?.[hi] !== null ? 'rgba(201,168,76,0.1)' : 'rgba(0,0,0,0.3)',
+                    border: `1px solid ${scores[pi]?.[hi] !== null ? 'var(--gold)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius:5, color:'var(--cream)', fontFamily:"'DM Sans',sans-serif",
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted)' }}>Back 9</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 3 }}>
+            {Array.from({length:9},(_,hi) => (
+              <div key={hi} style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:2 }}>
+                <div style={{fontSize:9,color:'var(--muted)'}}>B{hi+10}<br/>p{par[hi+9]}</div>
+                <input type="number" min="1" max="20"
+                  value={scores[pi]?.[hi+9] ?? ''}
+                  onChange={e => onUpdate(pi, hi+9, e.target.value)}
+                  placeholder="–"
+                  style={{
+                    width:'100%', height:32, textAlign:'center', fontSize:13, fontWeight:700,
+                    background: scores[pi]?.[hi+9] !== null ? 'rgba(201,168,76,0.1)' : 'rgba(0,0,0,0.3)',
+                    border: `1px solid ${scores[pi]?.[hi+9] !== null ? 'var(--gold)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius:5, color:'var(--cream)', fontFamily:"'DM Sans',sans-serif",
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
   const [editScores, setEditScores] = useState(
     () => players.map((_, pi) => {
