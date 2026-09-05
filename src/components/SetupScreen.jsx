@@ -30,6 +30,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [newCourseName, setNewCourseName] = useState('')
   const [savingCourse,  setSavingCourse]  = useState(false)
   const [courseSaved,   setCourseSaved]   = useState(false)
+  const [courseError,   setCourseError]   = useState('')
 
   // Pré-preenche Jogador 1 com dados do perfil logado
   useEffect(() => {
@@ -49,14 +50,20 @@ export default function SetupScreen({ onStart, onBack, session }) {
     supabase.from('saved_players').select('name,handicap')
       .eq('user_id', session.user.id)
       .order('last_used_at', { ascending: false })
-      .then(({ data, error }) => { if (!error && data) setSavedPlayers(data) })
+      .then(({ data, error }) => {
+        if (error) console.error('Erro ao carregar jogadores parceiros:', error.message)
+        else if (data) setSavedPlayers(data)
+      })
   }, [session?.user?.id])
 
   // Carrega os campos customizados cadastrados (por qualquer usuário do grupo)
   useEffect(() => {
     supabase.from('saved_courses').select('id,name,par,si')
       .order('name', { ascending: true })
-      .then(({ data, error }) => { if (!error && data) setSavedCourses(data) })
+      .then(({ data, error }) => {
+        if (error) console.error('Erro ao carregar campos cadastrados:', error.message)
+        else if (data) setSavedCourses(data)
+      })
   }, [])
 
   const updPlayer = (i, f, v) =>
@@ -84,11 +91,16 @@ export default function SetupScreen({ onStart, onBack, session }) {
     const name = newCourseName.trim()
     if (!name || !session?.user?.id) return
     setSavingCourse(true)
+    setCourseError('')
     const { data, error } = await supabase.from('saved_courses')
       .upsert({ user_id: session.user.id, name, par, si }, { onConflict: 'user_id,name' })
       .select('id,name,par,si').single()
     setSavingCourse(false)
-    if (!error && data) {
+    if (error) {
+      setCourseError(error.message || 'Não foi possível salvar o campo.')
+      return
+    }
+    if (data) {
       setSavedCourses(prev => {
         const exists = prev.some(c => c.id === data.id)
         return exists ? prev.map(c => c.id === data.id ? data : c) : [...prev, data]
@@ -118,7 +130,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
       if (rows.length > 0) {
         supabase.from('saved_players')
           .upsert(rows, { onConflict: 'user_id,name' })
-          .then(() => {})
+          .then(({ error }) => { if (error) console.error('Erro ao salvar jogadores parceiros:', error.message) })
       }
     }
 
@@ -400,6 +412,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
               {savingCourse ? 'Salvando...' : courseSaved ? '✓ Salvo' : '💾 Salvar'}
             </button>
           </div>
+          {courseError && (
+            <p style={{ fontSize: 12, color: 'var(--red, #e05555)', marginTop: 8 }}>
+              ⚠️ {courseError}
+            </p>
+          )}
         </div>
 
         <button className="btn-primary" onClick={handleStart} disabled={!canStart}>
