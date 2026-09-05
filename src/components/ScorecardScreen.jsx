@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+   import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
@@ -57,16 +57,21 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   })
 
   // ── Pairs ──
+  // Duplas (teamA/teamB) só existem de verdade no Nassau com 4 jogadores.
+  // Com 2 ou 3 jogadores não há dupla — todos jogam individual contra todos —
+  // então o filtro de "mesma dupla" não pode ser aplicado, senão o confronto
+  // entre os jogadores 0 e 1 (dupla padrão) é descartado por engano.
+  const teamsApply = format === 'nassau' && numPlayers === 4
   const pairs = useMemo(() => {
     const p = []
     for (let a = 0; a < numPlayers; a++)
       for (let b = a + 1; b < numPlayers; b++) {
-        const sameTeam = (teamA.includes(a) && teamA.includes(b)) || (teamB.includes(a) && teamB.includes(b))
+        const sameTeam = teamsApply && ((teamA.includes(a) && teamA.includes(b)) || (teamB.includes(a) && teamB.includes(b)))
         if (!playWithin && sameTeam) continue
         p.push([a, b])
       }
     return p
-  }, [numPlayers, teamA, teamB, playWithin])
+  }, [numPlayers, teamA, teamB, playWithin, teamsApply])
 
   // ── Nassau calculations ──
   const indivResults = useMemo(() =>
