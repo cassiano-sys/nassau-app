@@ -81,7 +81,10 @@ export function RankingScreen({ onBack, session }) {
         const key  = [keyA, keyB].sort().join('|||')
         if (!map[key]) map[key] = { nameA: m.player_a, nameB: m.player_b, balance: 0, jogos: 0 }
         // result_a = quanto A ganhou de B neste confronto
-        map[key].balance += (keyA < keyB ? m.result_a : -m.result_a)
+        // O sinal salvo deve ser relativo a nameA (fixado no primeiro confronto registrado),
+        // não à ordem alfabética de keyA/keyB do confronto atual
+        const sameOrder = firstNameLower(map[key].nameA) === keyA
+        map[key].balance += (sameOrder ? m.result_a : -m.result_a)
         map[key].jogos++
       })
       return Object.values(map).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
@@ -105,7 +108,9 @@ export function RankingScreen({ onBack, session }) {
           const key  = [keyA, keyB].sort().join('|||')
           if (!map[key]) map[key] = { nameA: pA.player_name, nameB: pB.player_name, balance: 0, jogos: 0 }
           const diff = (pA.money_result || 0) - (pB.money_result || 0)
-          map[key].balance += (keyA < keyB ? diff : -diff)
+          // Sinal relativo a nameA (fixado no primeiro confronto registrado)
+          const sameOrder = firstNameLower(map[key].nameA) === keyA
+          map[key].balance += (sameOrder ? diff : -diff)
           map[key].jogos++
         })
       })
