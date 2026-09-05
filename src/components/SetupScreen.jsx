@@ -26,6 +26,10 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
   const [betUnit,    setBetUnit]    = useState(20)
   const [savedPlayers, setSavedPlayers] = useState([]) // jogadores parceiros cadastrados
+  const [savedCourses, setSavedCourses] = useState([]) // campos customizados cadastrados
+  const [newCourseName, setNewCourseName] = useState('')
+  const [savingCourse,  setSavingCourse]  = useState(false)
+  const [courseSaved,   setCourseSaved]   = useState(false)
 
   // Pré-preenche Jogador 1 com dados do perfil logado
   useEffect(() => {
@@ -48,6 +52,13 @@ export default function SetupScreen({ onStart, onBack, session }) {
       .then(({ data, error }) => { if (!error && data) setSavedPlayers(data) })
   }, [session?.user?.id])
 
+  // Carrega os campos customizados cadastrados (por qualquer usuário do grupo)
+  useEffect(() => {
+    supabase.from('saved_courses').select('id,name,par,si')
+      .order('name', { ascending: true })
+      .then(({ data, error }) => { if (!error && data) setSavedCourses(data) })
+  }, [])
+
   const updPlayer = (i, f, v) =>
     setPlayers(prev => prev.map((p, pi) =>
       pi === i ? { ...p, [f]: f === 'handicap' ? Number(v) : v } : p
@@ -61,7 +72,33 @@ export default function SetupScreen({ onStart, onBack, session }) {
     }
   }
 
-  const selectCourse = (c) => { setCourse(c); setSi([...c.si]); setPar([...c.par]) }
+  const selectCourse = (c) => { setCourse(c); setSi([...c.si]); setPar([...c.par]); setNewCourseName('') }
+
+  // Campos fixos do app + campos customizados cadastrados pelo grupo
+  const courseList = [
+    ...COURSES,
+    ...savedCourses.map(c => ({ id: c.id, name: c.name, city: '', si: c.si, par: c.par })),
+  ]
+
+  const saveCourse = async () => {
+    const name = newCourseName.trim()
+    if (!name || !session?.user?.id) return
+    setSavingCourse(true)
+    const { data, error } = await supabase.from('saved_courses')
+      .upsert({ user_id: session.user.id, name, par, si }, { onConflict: 'user_id,name' })
+      .select('id,name,par,si').single()
+    setSavingCourse(false)
+    if (!error && data) {
+      setSavedCourses(prev => {
+        const exists = prev.some(c => c.id === data.id)
+        return exists ? prev.map(c => c.id === data.id ? data : c) : [...prev, data]
+      })
+      setCourse({ id: data.id, name: data.name, city: '', si: data.si, par: data.par })
+      setNewCourseName('')
+      setCourseSaved(true)
+      setTimeout(() => setCourseSaved(false), 2500)
+    }
+  }
 
   const canStart = players.slice(0, numPlayers).every(p => p.name.trim())
 
@@ -295,7 +332,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
         <div className="card">
           <h2>Campo</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {COURSES.map(c => (
+            {courseList.map(c => (
               <button key={c.id}
                 onClick={() => selectCourse(c)}
                 style={{
@@ -311,9 +348,26 @@ export default function SetupScreen({ onStart, onBack, session }) {
           </div>
         </div>
 
-        {/* SI */}
+        {/* Par + SI */}
         <div className="card">
-          <h2>Índice Stroke — {course.name}</h2>
+          <h2>Par e Índice Stroke — {course.name}</h2>
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+            Ajuste os valores se precisar — dá pra salvar como um campo novo logo abaixo.
+          </p>
+          <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted2)', letterSpacing: '0.5px' }}>PAR</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 5, marginBottom: 10 }}>
+            {Array.from({ length: 18 }, (_, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                <div style={{ fontSize: 9, color: 'var(--muted2)' }}>B{i+1}</div>
+                <input type="number" min="3" max="6"
+                  style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: 'var(--sans)' }}
+                  value={par[i]}
+                  onChange={e => setPar(prev => prev.map((v,vi) => vi===i ? Number(e.target.value) : v))}
+                />
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted2)', letterSpacing: '0.5px' }}>STROKE INDEX</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 5 }}>
             {Array.from({ length: 18 }, (_, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
@@ -325,6 +379,26 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 />
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Cadastrar campo novo */}
+        <div className="card">
+          <h2>Cadastrar este campo</h2>
+          <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+            Dê um nome e salve os valores de Par/SI acima como um campo novo — ele fica disponível pra você (e pro seu grupo) escolher nas próximas rodadas.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              style={{ ...inputStyle, flex: 1 }}
+              placeholder="Nome do campo"
+              value={newCourseName}
+              onChange={e => setNewCourseName(e.target.value)}
+            />
+            <button className="btn-secondary" onClick={saveCourse} disabled={!newCourseName.trim() || savingCourse}
+              style={{ flexShrink: 0, padding: '0 16px' }}>
+              {savingCourse ? 'Salvando...' : courseSaved ? '✓ Salvo' : '💾 Salvar'}
+            </button>
           </div>
         </div>
 
