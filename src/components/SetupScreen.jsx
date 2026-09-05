@@ -396,7 +396,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
               onChange={e => setNewCourseName(e.target.value)}
             />
             <button className="btn-secondary" onClick={saveCourse} disabled={!newCourseName.trim() || savingCourse}
-              style={{ flexShrink: 0, padding: '0 16px' }}>
+              style={{ width: 'auto', flex: '0 0 auto', whiteSpace: 'nowrap', padding: '0 16px', marginBottom: 0 }}>
               {savingCourse ? 'Salvando...' : courseSaved ? '✓ Salvo' : '💾 Salvar'}
             </button>
           </div>
