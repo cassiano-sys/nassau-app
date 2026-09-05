@@ -239,8 +239,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     setSaving(false)
   }
   // ── Team labels (component scope) ──
-  const tLA = teamA.map(i => players[i].name).join('/')
-  const tLB = teamB.map(i => players[i].name).join('/')
+  // teamA/teamB só representam duplas reais no Nassau com 4 jogadores.
+  // Com 2 ou 3 jogadores, teamB pode conter índices fora do array de
+  // players (ex.: [2,3] com apenas 2 jogadores) — sem o filtro abaixo,
+  // "players[i].name" quebra o app inteiro ao tentar ler um jogador
+  // inexistente, e a tela nem chega a abrir.
+  const tLA = teamA.filter(i => i < numPlayers).map(i => players[i].name).join('/')
+  const tLB = teamB.filter(i => i < numPlayers).map(i => players[i].name).join('/')
 
   // ── Photo mode UI ──
   if (photoMode) return (
