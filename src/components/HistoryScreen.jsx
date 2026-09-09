@@ -528,7 +528,7 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
           </button>
         </div>
         <div className="card" style={{ borderColor:'rgba(201,168,76,0.2)' }}>
-          <h2>Nassau App</h2>
+          <h2>Golf Hustle</h2>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.8 }}>
             <div>Versão 1.0</div>
             <div>Nassau · Skins · Stableford</div>
