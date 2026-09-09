@@ -1,4 +1,4 @@
-   import { useState, useEffect, useMemo, useRef } from 'react'
+      import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
@@ -316,7 +316,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     <div className="screen">
       <header className="app-header">
         <button className="back-btn" onClick={onBack}>←</button>
-        <span className="header-title">⛳ Nassau<span>App</span></span>
+        <span className="header-title">⛳ Golf<span>Hustle</span></span>
         <div className="view-toggle">
           <button className={tab === 'card' ? 'active' : ''} onClick={() => setTab('card')}>Cartão</button>
           <button className={tab === 'results' ? 'active' : ''} onClick={() => setTab('results')}>Resumo</button>
