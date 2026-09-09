@@ -1,7 +1,7 @@
 {
-  "name": "Nassau App",
-  "short_name": "Nassau",
-  "description": "Golf Nassau com press automático, duplas e ranking",
+  "name": "Golf Hustle",
+  "short_name": "GolfHustle",
+  "description": "Nassau, Skins e Stableford com press automático, duplas, leitura de cartão por IA e ranking",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a1628",
