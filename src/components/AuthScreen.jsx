@@ -62,7 +62,7 @@ export default function AuthScreen({ onAuth }) {
   return (
     <div className="auth-screen">
       <div className="auth-logo">⛳</div>
-      <h1 className="auth-title">Nassau<span>App</span></h1>
+      <h1 className="auth-title">Golf<span>Hustle</span></h1>
       <p className="auth-sub">Golfe com Nassau & Press</p>
 
       <button className="oauth-btn" onClick={handleGoogle} disabled={loading}>
