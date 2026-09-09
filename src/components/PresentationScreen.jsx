@@ -55,7 +55,7 @@ export default function PresentationScreen({ onBack }) {
         textTransform: 'uppercase', textAlign: 'center', marginBottom: 4,
         fontWeight: 500,
       }}>
-        {course?.name || 'Nassau'}
+        {course?.name || 'GolfHustle'}
       </div>
       <div style={{
         fontSize: 12, color: 'var(--muted)', letterSpacing: '2px',
