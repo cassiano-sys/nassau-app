@@ -42,7 +42,7 @@ function Splash() {
       minHeight:'100vh', background:'#0d1a0f', color:'#c9a84c',
       fontFamily:"'Cormorant Garamond', Georgia, serif" }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>⛳</div>
-      <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4 }}>Nassau</div>
+      <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4 }}>Golf<span style={{ color: '#c9a84c' }}>Hustle</span></div>
     </div>
   )
 }
