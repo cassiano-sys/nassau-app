@@ -172,7 +172,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
       <header className="app-header">
         <button className="back-btn" onClick={onBack}>←</button>
         <span className="header-title" style={{ fontFamily: 'var(--serif)', fontSize: 20 }}>
-          ⛳ Nassau<span style={{ color: 'var(--gold)' }}>App</span>
+          ⛳ Golf<span style={{ color: 'var(--gold)' }}>Hustle</span>
         </span>
         <div style={{ width: 60 }}/>
       </header>
