@@ -22,7 +22,9 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ScorecardScreen({ config, onFinish, onBack, session }) {
-  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course } = config
+  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual } = config
+  // Retrocompatível: rodadas antigas (ou config sem o campo) tratam todo mundo como "joga individual"
+  const indivEnabled = playsIndividual || players.map(() => true)
 
   const [scores, setScores]     = useState(() => players.map(() => Array(18).fill(null)))
   const [activeHole, setActiveHole] = useState(0)
@@ -67,12 +69,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     const p = []
     for (let a = 0; a < numPlayers; a++)
       for (let b = a + 1; b < numPlayers; b++) {
+        if (indivEnabled[a] === false || indivEnabled[b] === false) continue
         const sameTeam = teamsApply && ((teamA.includes(a) && teamA.includes(b)) || (teamB.includes(a) && teamB.includes(b)))
         if (!playWithin && sameTeam) continue
         p.push([a, b])
       }
     return p
-  }, [numPlayers, teamA, teamB, playWithin, teamsApply])
+  }, [numPlayers, teamA, teamB, playWithin, teamsApply, indivEnabled])
 
   // ── Nassau calculations ──
   const indivResults = useMemo(() =>
@@ -556,6 +559,11 @@ function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResu
   return (
     <div>
       <div style={{ fontFamily: 'var(--serif)', fontSize: 16, color: 'var(--gold)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.5px' }}>Placar Corrido</div>
+      {pairs.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+          Nenhum confronto individual configurado nesta rodada.
+        </p>
+      )}
       {indivResults.map((res, mi) => {
         const [a, b] = pairs[mi]
         const m = indivMoney[mi]
@@ -948,6 +956,11 @@ function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, t
   return (
     <div className="card">
       <h2>Resultados Nassau</h2>
+      {pairs.length === 0 && (
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+          Nenhum confronto individual configurado nesta rodada.
+        </p>
+      )}
       {indivResults.map((res, mi) => {
         const [a, b] = pairs[mi]
         const m = indivMoney[mi]
@@ -1060,3 +1073,4 @@ function StablefordResults({ players, result, betUnit }) {
     </div>
   )
 }
+     
