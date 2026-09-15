@@ -1,6 +1,6 @@
 {
-  "name": "Golf Hustle",
-  "short_name": "GolfHustle",
+  "name": "Caddie Stakes Golf",
+  "short_name": "CaddieStakes",
   "description": "Nassau, Skins e Stableford com press automático, duplas, leitura de cartão por IA e ranking",
   "start_url": "/",
   "display": "standalone",
