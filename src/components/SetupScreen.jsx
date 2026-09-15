@@ -23,6 +23,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [teamA,      setTeamA]      = useState([0, 1])
   const [teamB,      setTeamB]      = useState([2, 3])
   const [playWithin, setPlayWithin] = useState(false)
+  const [playsIndividual, setPlaysIndividual] = useState([true, true, true, true])
   const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
   const [betUnit,    setBetUnit]    = useState(20)
   const [savedPlayers, setSavedPlayers] = useState([]) // jogadores parceiros cadastrados
@@ -70,6 +71,9 @@ export default function SetupScreen({ onStart, onBack, session }) {
     setPlayers(prev => prev.map((p, pi) =>
       pi === i ? { ...p, [f]: f === 'handicap' ? Number(v) : v } : p
     ))
+
+  const toggleIndividual = (pi) =>
+    setPlaysIndividual(prev => prev.map((v, i) => i === pi ? !v : v))
 
   const toggleTeam = (pi) => {
     if (teamA.includes(pi)) {
@@ -139,11 +143,14 @@ export default function SetupScreen({ onStart, onBack, session }) {
       players: players.slice(0, numPlayers),
       course, si, par,
       teamA, teamB, playWithin,
+      playsIndividual: playsIndividual.slice(0, numPlayers),
       betValues: format === 'nassau' ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
       betUnit,
       numPlayers,
     })
   }
+
+  const activeIndividualCount = playsIndividual.slice(0, numPlayers).filter(Boolean).length
 
   const inputStyle = {
     width: '100%',
@@ -256,9 +263,33 @@ export default function SetupScreen({ onStart, onBack, session }) {
                     Handicap do seu perfil — ajuste conforme o tee de hoje
                   </div>
                 )}
+                {format === 'nassau' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer' }}
+                    onClick={() => toggleIndividual(i)}>
+                    <div style={{
+                      width: 32, height: 18, borderRadius: 9, padding: 2,
+                      background: playsIndividual[i] ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                      transition: 'background .2s', flexShrink: 0,
+                    }}>
+                      <div style={{
+                        width: 14, height: 14, background: '#fff', borderRadius: '50%',
+                        transform: playsIndividual[i] ? 'translateX(14px)' : 'translateX(0)',
+                        transition: 'transform .2s',
+                      }}/>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--muted2)' }}>
+                      Joga confrontos individuais ({playsIndividual[i] ? 'sim' : 'não'})
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
+          {format === 'nassau' && activeIndividualCount < 2 && (
+            <p style={{ fontSize: 11, color: 'var(--red, #e05555)', marginTop: 10 }}>
+              ⚠️ Com menos de 2 jogadores no individual, não haverá confrontos individuais nesta rodada{numPlayers === 4 ? ' (a dupla continua valendo normalmente)' : ''}.
+            </p>
+          )}
         </div>
 
         {/* Duplas — Nassau com 4 jogadores */}
