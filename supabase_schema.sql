@@ -51,12 +51,6 @@ alter table rounds          enable row level security;
 alter table round_players   enable row level security;
 alter table round_matchups  enable row level security;
 
--- Helper (inline, repeated in each policy since Postgres RLS policies can't
--- share a function call cheaply without extra grants): the first name, in
--- lowercase, of the currently authenticated user's account (from user_metadata
--- .full_name in the JWT — the same value the app itself uses client-side, see
--- firstNameLower() in HistoryScreen.jsx / HomeScreen.jsx).
---
 -- Visibility rule: a round is visible to a user if they created it (rounds
 -- .user_id = auth.uid(), so whoever entered/owns the scorecard can always see
 -- and manage it, even for rounds where they only typed in other people's
@@ -66,38 +60,52 @@ alter table round_matchups  enable row level security;
 -- matchups that don't meet either condition are invisible — this is what
 -- keeps Ranking and History scoped to "people you've actually played with"
 -- instead of every round ever entered by any app user.
+--
+-- This check is done through a SECURITY DEFINER helper function rather than
+-- each table's policy directly querying the other table. A first attempt had
+-- rounds' policy query round_players and round_players' policy query rounds
+-- back — Postgres detects that mutual reference as recursive ("infinite
+-- recursion detected in policy", error 42P17) and refuses the query entirely
+-- (this is what caused Ranking/History to briefly show nothing for everyone,
+-- including the round's own owner). A SECURITY DEFINER function runs with
+-- its owner's privileges, and table owners bypass RLS by default in Postgres,
+-- so the function's internal queries don't re-trigger these same policies —
+-- breaking the cycle.
 
 drop policy if exists "Anyone can read rounds" on rounds;
 drop policy if exists "Anyone can read round_players" on round_players;
+drop policy if exists "Anyone authenticated can read matchups" on round_matchups;
 drop policy if exists "Anyone can read round_matchups" on round_matchups;
 
-create policy "Read rounds you created or played in"
-  on rounds for select using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from round_players rp
-      where rp.round_id = rounds.id
-        and lower(split_part(rp.player_name, ' ', 1))
-          = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
-    )
+create or replace function public.can_see_round(target_round_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from rounds r
+    where r.id = target_round_id and r.user_id = auth.uid()
+  )
+  or exists (
+    select 1 from round_players rp
+    where rp.round_id = target_round_id
+      and lower(split_part(rp.player_name, ' ', 1))
+        = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
   );
+$$;
+
+grant execute on function public.can_see_round(uuid) to authenticated, anon;
+
+create policy "Read rounds you created or played in"
+  on rounds for select using ( public.can_see_round(id) );
 
 create policy "Users can insert their rounds"
   on rounds for insert with check (auth.uid() = user_id);
 
 create policy "Read round_players of rounds you created or played in"
-  on round_players for select using (
-    exists (
-      select 1 from rounds r
-      where r.id = round_players.round_id and r.user_id = auth.uid()
-    )
-    or exists (
-      select 1 from round_players rp2
-      where rp2.round_id = round_players.round_id
-        and lower(split_part(rp2.player_name, ' ', 1))
-          = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
-    )
-  );
+  on round_players for select using ( public.can_see_round(round_id) );
 
 create policy "Users can insert round_players"
   on round_players for insert with check (
@@ -105,18 +113,7 @@ create policy "Users can insert round_players"
   );
 
 create policy "Read round_matchups of rounds you created or played in"
-  on round_matchups for select using (
-    exists (
-      select 1 from rounds r
-      where r.id = round_matchups.round_id and r.user_id = auth.uid()
-    )
-    or exists (
-      select 1 from round_players rp
-      where rp.round_id = round_matchups.round_id
-        and lower(split_part(rp.player_name, ' ', 1))
-          = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
-    )
-  );
+  on round_matchups for select using ( public.can_see_round(round_id) );
 
 create policy "Users can insert round_matchups"
   on round_matchups for insert with check (
