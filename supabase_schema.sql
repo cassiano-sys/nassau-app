@@ -51,23 +51,72 @@ alter table rounds          enable row level security;
 alter table round_players   enable row level security;
 alter table round_matchups  enable row level security;
 
--- Policies: anyone authenticated can read all rounds (for ranking)
-create policy "Anyone can read rounds"
-  on rounds for select using (auth.role() = 'authenticated');
+-- Helper (inline, repeated in each policy since Postgres RLS policies can't
+-- share a function call cheaply without extra grants): the first name, in
+-- lowercase, of the currently authenticated user's account (from user_metadata
+-- .full_name in the JWT — the same value the app itself uses client-side, see
+-- firstNameLower() in HistoryScreen.jsx / HomeScreen.jsx).
+--
+-- Visibility rule: a round is visible to a user if they created it (rounds
+-- .user_id = auth.uid(), so whoever entered/owns the scorecard can always see
+-- and manage it, even for rounds where they only typed in other people's
+-- names) OR if their own first name matches one of the players recorded in
+-- that round (so someone else's round they actually played in also shows up
+-- for them, even if a friend was the one holding the phone). Rounds/players/
+-- matchups that don't meet either condition are invisible — this is what
+-- keeps Ranking and History scoped to "people you've actually played with"
+-- instead of every round ever entered by any app user.
+
+drop policy if exists "Anyone can read rounds" on rounds;
+drop policy if exists "Anyone can read round_players" on round_players;
+drop policy if exists "Anyone can read round_matchups" on round_matchups;
+
+create policy "Read rounds you created or played in"
+  on rounds for select using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from round_players rp
+      where rp.round_id = rounds.id
+        and lower(split_part(rp.player_name, ' ', 1))
+          = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
+    )
+  );
 
 create policy "Users can insert their rounds"
   on rounds for insert with check (auth.uid() = user_id);
 
-create policy "Anyone can read round_players"
-  on round_players for select using (auth.role() = 'authenticated');
+create policy "Read round_players of rounds you created or played in"
+  on round_players for select using (
+    exists (
+      select 1 from rounds r
+      where r.id = round_players.round_id and r.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from round_players rp2
+      where rp2.round_id = round_players.round_id
+        and lower(split_part(rp2.player_name, ' ', 1))
+          = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
+    )
+  );
 
 create policy "Users can insert round_players"
   on round_players for insert with check (
     exists (select 1 from rounds where id = round_id and user_id = auth.uid())
   );
 
-create policy "Anyone can read round_matchups"
-  on round_matchups for select using (auth.role() = 'authenticated');
+create policy "Read round_matchups of rounds you created or played in"
+  on round_matchups for select using (
+    exists (
+      select 1 from rounds r
+      where r.id = round_matchups.round_id and r.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from round_players rp
+      where rp.round_id = round_matchups.round_id
+        and lower(split_part(rp.player_name, ' ', 1))
+          = lower(split_part(coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', ''), ' ', 1))
+    )
+  );
 
 create policy "Users can insert round_matchups"
   on round_matchups for insert with check (
