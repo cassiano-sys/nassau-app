@@ -1,4 +1,4 @@
-         import { useState, useEffect, useMemo, useRef } from 'react'
+        import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
@@ -59,12 +59,17 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     return n
   })
 
-  // Match Play reaproveita a mesma engine do Nassau (calcIndiv/calcTeam) —
-  // a única diferença é o pressAt: Infinity nunca é atingido, então nenhum
-  // press nasce, dando o "Nassau sem press" que o Match Play deve ser.
-  const isNassauLike = format === 'nassau' || format === 'matchplay'
-  const pressAtIndiv = format === 'matchplay' ? Infinity : 2
+  // Match Play e Catraca reaproveitam a mesma engine do Nassau (calcIndiv/
+  // calcTeam) — só muda o pressAt: Infinity no Match Play (nenhum press
+  // nasce, dando o "Nassau sem press"), 1 no Catraca individual (press a
+  // cada buraco de diferença, em vez de 2). Em dupla o Catraca mantém o
+  // intervalo normal do Nassau (4) — só o individual fica mais agressivo.
+  const isNassauLike = format === 'nassau' || format === 'matchplay' || format === 'catraca'
+  const pressAtIndiv = format === 'matchplay' ? Infinity : format === 'catraca' ? 1 : 2
   const pressAtTeam  = format === 'matchplay' ? Infinity : 4
+  // Catraca: a primeira aposta (antes de qualquer press) de Front9/Back9 vale
+  // o dobro do valor digitado — cada press que nasce depois vale 1x normal.
+  const mainMultiplier = format === 'catraca' ? 2 : 1
 
   // ── Pairs ──
   // Duplas (teamA/teamB) só existem de verdade no Nassau/Match Play com 4
@@ -93,8 +98,8 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   , [scores, pairs, players, si, isNassauLike, pressAtIndiv])
 
   const indivMoney = useMemo(() =>
-    indivResults.map(r => calcMoney(r, betValues))
-  , [indivResults, betValues])
+    indivResults.map(r => calcMoney(r, betValues, mainMultiplier))
+  , [indivResults, betValues, mainMultiplier])
 
   const teamResult = useMemo(() =>
     isNassauLike && numPlayers === 4
@@ -103,8 +108,8 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   , [scores, players, teamA, teamB, si, numPlayers, isNassauLike, pressAtTeam])
 
   const teamMoney = useMemo(() =>
-    teamResult ? calcMoney(teamResult, betValues) : null
-  , [teamResult, betValues])
+    teamResult ? calcMoney(teamResult, betValues, mainMultiplier) : null
+  , [teamResult, betValues, mainMultiplier])
 
   // ── Skins ──
   const skinsResult = useMemo(() =>
@@ -497,7 +502,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
               <NassauResults pairs={pairs} players={players} indivResults={indivResults}
                 indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
                 tLA={tLA} tLB={tLB} betValues={betValues}
-                title={format === 'matchplay' ? 'Resultados Match Play' : 'Resultados Nassau'}/>
+                title={format === 'matchplay' ? 'Resultados Match Play' : format === 'catraca' ? 'Resultados Catraca' : 'Resultados Nassau'}/>
             </>
           )}
           {format === 'skins' && skinsResult && (
