@@ -135,6 +135,23 @@ export function calcMoney(result, betValues) {
   return { front: mF, back: mB, total18: mT, grand: mF.total + mB.total + mT }
 }
  
+// ── Zero-sum payout ──────────────────────────────────────────────────────────
+// Pool formats (Skins/Stableford/Medal) compute a "gross winnings" array —
+// positive for whoever won something, 0 for everyone else. On its own that
+// isn't zero-sum: with only 2 players it looks like money appears from
+// nowhere instead of coming out of the other player's pocket. This turns it
+// into a real settlement: winners keep what they won, and whoever won
+// nothing (gross === 0) splits paying for it evenly. If nobody won anything
+// (gross is all zero) or literally everyone "won" (a full tie), there's no
+// one to fund from, so nothing changes.
+export function zeroSum(gross) {
+  const totalToFund = gross.reduce((a, b) => a + b, 0)
+  const losers = gross.map((g, i) => g === 0 ? i : -1).filter(i => i >= 0)
+  if (losers.length === 0 || totalToFund === 0) return gross.slice()
+  const share = totalToFund / losers.length
+  return gross.map((g, i) => losers.includes(i) ? g - share : g)
+}
+ 
 // ── Skins ─────────────────────────────────────────────────────────────────────
 // Each hole is worth 1 skin. Ties carry over to next hole.
 export function calcSkins(grossAll, players, si, betPerSkin) {
@@ -165,7 +182,7 @@ export function calcSkins(grossAll, players, si, betPerSkin) {
   const totalSkins = skins.reduce((a, b) => a + b, 0)
   return {
     skins,
-    money: skins.map(s => s * betPerSkin),
+    money: zeroSum(skins.map(s => s * betPerSkin)),
     totalSkins,
     carryover,
   }
@@ -193,7 +210,10 @@ export function calcMedal(grossAll, players, si, betValues) {
   const payout = (totals, value) => {
     const min = Math.min(...totals)
     const winners = totals.map((t, pi) => t === min ? pi : -1).filter(pi => pi >= 0)
-    return totals.map((_, pi) => winners.includes(pi) ? value / winners.length : 0)
+    // Everyone tied (including a fully-unplayed segment, where every total
+    // is still 0) — no one actually won, so it's a push, not a full split.
+    if (winners.length === totals.length) return totals.map(() => 0)
+    return zeroSum(totals.map((_, pi) => winners.includes(pi) ? value / winners.length : 0))
   }
  
   const front = segmentTotals(FRONT)
@@ -235,12 +255,17 @@ export function calcStableford(grossAll, players, si, par, betPerPoint) {
   const maxPoints = Math.max(...points)
   const winners   = points.map((pts, pi) => pts === maxPoints ? pi : -1).filter(pi => pi >= 0)
  
-  return {
-    points,
-    winners,
-    money: players.map((_, pi) => {
-      if (winners.includes(pi)) return betPerPoint * (maxPoints - (points.find((p, i) => !winners.includes(i)) ?? 0))
-      return 0
-    }),
+  // Everyone tied for first (including nobody having played yet) — push, no
+  // money changes hands. Otherwise the margin is against the best score
+  // among those who did NOT win (the true "2nd place"), not an arbitrary
+  // non-winner — and the prize is funded by whoever won nothing, not
+  // invented from thin air.
+  let money = players.map(() => 0)
+  if (winners.length < players.length) {
+    const runnerUp = Math.max(...points.filter((_, pi) => !winners.includes(pi)))
+    const perWinner = betPerPoint * (maxPoints - runnerUp)
+    money = zeroSum(players.map((_, pi) => winners.includes(pi) ? perWinner : 0))
   }
+ 
+  return { points, winners, money }
 }
