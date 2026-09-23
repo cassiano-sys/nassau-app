@@ -164,7 +164,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
   }
 
   const hcpStyle = {
-    width: 60, height: 34,
+    width: 46, height: 34,
     background: 'rgba(0,0,0,0.3)',
     border: '0.5px solid rgba(255,255,255,0.12)',
     borderRadius: 'var(--rr)',
@@ -172,6 +172,24 @@ export default function SetupScreen({ onStart, onBack, session }) {
     fontFamily: 'var(--sans)',
     fontSize: 14, fontWeight: 700,
     textAlign: 'center',
+  }
+
+  const hcpBtnStyle = {
+    width: 26, height: 34,
+    background: 'rgba(255,255,255,0.06)',
+    border: '0.5px solid rgba(255,255,255,0.12)',
+    borderRadius: 'var(--rr)',
+    color: 'var(--gold)',
+    fontFamily: 'var(--sans)',
+    fontSize: 15, fontWeight: 700,
+    cursor: 'pointer', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+
+  const stepHcp = (i, delta) => {
+    const cur = Number(players[i].handicap) || 0
+    const next = Math.max(-10, Math.min(54, cur + delta))
+    updPlayer(i, 'handicap', next)
   }
 
   return (
@@ -224,6 +242,13 @@ export default function SetupScreen({ onStart, onBack, session }) {
               </button>
             ))}
           </div>
+          <div style={{
+            fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5,
+            background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.25)',
+            borderRadius: 8, padding: '8px 10px', marginBottom: 10,
+          }}>
+            💡 Handicap <strong style={{ color: 'var(--gold)' }}>plus</strong> (melhor que zero)? Use o botão <strong>−</strong> até passar de 0 — o handicap fica <strong>negativo</strong> (ex.: -2), nunca positivo. O app calcula as tacadas dos outros automaticamente a partir disso.
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Array.from({ length: numPlayers }, (_, i) => (
               <div key={i} style={{
@@ -238,7 +263,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <PlayerNameField
-                    style={{ ...inputStyle, flex: 1 }}
+                    style={{ ...inputStyle, flex: 1, minWidth: 0 }}
                     placeholder={`Jogador ${i + 1}`}
                     value={players[i].name}
                     suggestions={savedPlayers}
@@ -248,14 +273,16 @@ export default function SetupScreen({ onStart, onBack, session }) {
                       if (s.handicap !== null && s.handicap !== undefined) updPlayer(i, 'handicap', s.handicap)
                     }}
                   />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted2)', letterSpacing: '1px' }}>HCP</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted2)', letterSpacing: '1px', marginRight: 2 }}>HCP</span>
+                    <button type="button" style={hcpBtnStyle} onClick={() => stepHcp(i, -1)} aria-label="Diminuir handicap">−</button>
                     <input
                       type="number" min="-10" max="54"
                       style={hcpStyle}
                       value={players[i].handicap}
                       onChange={e => updPlayer(i, 'handicap', e.target.value)}
                     />
+                    <button type="button" style={hcpBtnStyle} onClick={() => stepHcp(i, 1)} aria-label="Aumentar handicap">+</button>
                   </div>
                 </div>
                 {i === 0 && (
