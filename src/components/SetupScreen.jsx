@@ -5,14 +5,17 @@ import { supabase } from '../lib/supabase'
 const FORMATS = [
   { id: 'nassau',     label: 'Nassau',     icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
   { id: 'matchplay',  label: 'Match Play', icon: '🥊', desc: 'Igual ao Nassau, mas sem press — placar corrido simples' },
+  { id: 'catraca',    label: 'Catraca',    icon: '⚙️', desc: 'Nassau com press a cada 1 buraco (individual) — aposta inicial de Front/Back vale dobro do press' },
   { id: 'medal',      label: 'Medal',      icon: '🎖️', desc: 'Stroke play: menor total líquido leva Front 9 / Back 9 / Total' },
   { id: 'skins',     label: 'Skins',      icon: '💰', desc: 'Cada buraco vale 1 skin. Empates acumulam.' },
   { id: 'stableford',label: 'Stableford', icon: '📊', desc: 'Pontos por buraco (birdie=3, par=2, bogey=1)' },
 ]
 
-// Match Play reaproveita toda a estrutura do Nassau (Front/Back/Total, duplas,
-// confrontos individuais) — a única diferença é não ter o press automático.
-const isNassauLike = (format) => format === 'nassau' || format === 'matchplay'
+// Match Play e Catraca reaproveitam toda a estrutura do Nassau (Front/Back/
+// Total, duplas, confrontos individuais) — o que muda entre os três é só o
+// intervalo de press (e, no Catraca, o valor da aposta inicial de Front/Back),
+// tudo resolvido lá no ScorecardScreen.
+const isNassauLike = (format) => format === 'nassau' || format === 'matchplay' || format === 'catraca'
 
 export default function SetupScreen({ onStart, onBack, session }) {
   const [format,     setFormat]     = useState('nassau')
@@ -376,6 +379,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
         {/* Apostas */}
         <div className="card">
           <h2>Valores das apostas (R$)</h2>
+          {format === 'catraca' && (
+            <div style={{ fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: 'rgba(201,168,76,0.06)', border: '0.5px solid var(--border-gold)', borderRadius: 8 }}>
+              💡 No Catraca, o valor de Front 9 e Back 9 é o valor de <strong>cada press</strong> — a primeira aposta da volta (antes de qualquer press) já entra valendo o <strong>dobro</strong> disso. Ex.: Front 9 = 5 → a volta em si vale 10, e cada press que nascer no meio dela vale 5. O Total 18 não tem press e vale exatamente o que você digitar.
+            </div>
+          )}
           {(isNassauLike(format) || format === 'medal') ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[['frontVal','Front 9'],['backVal','Back 9'],['totalVal','Total 18']].map(([k,l]) => (
