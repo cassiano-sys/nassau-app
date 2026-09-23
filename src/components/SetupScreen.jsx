@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 
 const FORMATS = [
   { id: 'nassau',     label: 'Nassau',     icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
+  { id: 'medal',      label: 'Medal',      icon: '🎖️', desc: 'Stroke play: menor total líquido leva Front 9 / Back 9 / Total' },
   { id: 'skins',     label: 'Skins',      icon: '💰', desc: 'Cada buraco vale 1 skin. Empates acumulam.' },
   { id: 'stableford',label: 'Stableford', icon: '📊', desc: 'Pontos por buraco (birdie=3, par=2, bogey=1)' },
 ]
@@ -144,7 +145,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
       course, si, par,
       teamA, teamB, playWithin,
       playsIndividual: playsIndividual.slice(0, numPlayers),
-      betValues: format === 'nassau' ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
+      betValues: (format === 'nassau' || format === 'medal') ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
       betUnit,
       numPlayers,
     })
@@ -370,7 +371,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
         {/* Apostas */}
         <div className="card">
           <h2>Valores das apostas (R$)</h2>
-          {format === 'nassau' ? (
+          {(format === 'nassau' || format === 'medal') ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[['frontVal','Front 9'],['backVal','Back 9'],['totalVal','Total 18']].map(([k,l]) => (
                 <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
