@@ -6,6 +6,7 @@ import SetupScreen         from './components/SetupScreen'
 import ScorecardScreen     from './components/ScorecardScreen'
 import PresentationScreen  from './components/PresentationScreen'
 import { HistoryScreen, RankingScreen, ProfileScreen } from './components/HistoryScreen'
+import BugReportButton     from './components/BugReportButton'
 
 export default function App() {
   const [session,    setSession]    = useState(null)
@@ -26,14 +27,26 @@ export default function App() {
 
   const nav = (s) => setScreen(s)
 
-  if (screen === 'setup')        return <SetupScreen        onStart={cfg => { setGameConfig(cfg); nav('scorecard') }} onBack={() => nav('home')} session={session}/>
-  if (screen === 'scorecard')    return <ScorecardScreen    config={gameConfig} onFinish={s => nav(s || 'home')} onBack={() => nav('home')} session={session}/>
-  if (screen === 'presentation') return <PresentationScreen onBack={() => nav('home')}/>
-  if (screen === 'history')      return <HistoryScreen      onBack={() => nav('home')} session={session}/>
-  if (screen === 'ranking')      return <RankingScreen      onBack={() => nav('home')} session={session}/>
-  if (screen === 'profile')      return <ProfileScreen      onBack={() => nav('home')} session={session} onSignOut={() => { setSession(null); nav('home') }}/>
+  let content
+  if (screen === 'setup')        content = <SetupScreen        onStart={cfg => { setGameConfig(cfg); nav('scorecard') }} onBack={() => nav('home')} session={session}/>
+  else if (screen === 'scorecard')    content = <ScorecardScreen    config={gameConfig} onFinish={s => nav(s || 'home')} onBack={() => nav('home')} session={session}/>
+  else if (screen === 'presentation') content = <PresentationScreen onBack={() => nav('home')}/>
+  else if (screen === 'history')      content = <HistoryScreen      onBack={() => nav('home')} session={session}/>
+  else if (screen === 'ranking')      content = <RankingScreen      onBack={() => nav('home')} session={session}/>
+  else if (screen === 'profile')      content = <ProfileScreen      onBack={() => nav('home')} session={session} onSignOut={() => { setSession(null); nav('home') }}/>
+  else                                 content = <HomeScreen nav={nav} session={session}/>
 
-  return <HomeScreen nav={nav} session={session}/>
+  // Botão flutuante de "relatar problema" — aparece em toda tela logada,
+  // menos na Apresentação (tela em tela cheia, sem distrações, no fim da
+  // rodada de premiação).
+  const showBugButton = screen !== 'presentation'
+
+  return (
+    <>
+      {content}
+      {showBugButton && <BugReportButton session={session} screen={screen}/>}
+    </>
+  )
 }
 
 function Splash() {
