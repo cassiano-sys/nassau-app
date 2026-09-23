@@ -59,12 +59,20 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     return n
   })
 
+  // Match Play reaproveita a mesma engine do Nassau (calcIndiv/calcTeam) —
+  // a única diferença é o pressAt: Infinity nunca é atingido, então nenhum
+  // press nasce, dando o "Nassau sem press" que o Match Play deve ser.
+  const isNassauLike = format === 'nassau' || format === 'matchplay'
+  const pressAtIndiv = format === 'matchplay' ? Infinity : 2
+  const pressAtTeam  = format === 'matchplay' ? Infinity : 4
+
   // ── Pairs ──
-  // Duplas (teamA/teamB) só existem de verdade no Nassau com 4 jogadores.
-  // Com 2 ou 3 jogadores não há dupla — todos jogam individual contra todos —
-  // então o filtro de "mesma dupla" não pode ser aplicado, senão o confronto
-  // entre os jogadores 0 e 1 (dupla padrão) é descartado por engano.
-  const teamsApply = format === 'nassau' && numPlayers === 4
+  // Duplas (teamA/teamB) só existem de verdade no Nassau/Match Play com 4
+  // jogadores. Com 2 ou 3 jogadores não há dupla — todos jogam individual
+  // contra todos — então o filtro de "mesma dupla" não pode ser aplicado,
+  // senão o confronto entre os jogadores 0 e 1 (dupla padrão) é descartado
+  // por engano.
+  const teamsApply = isNassauLike && numPlayers === 4
   const pairs = useMemo(() => {
     const p = []
     for (let a = 0; a < numPlayers; a++)
@@ -77,22 +85,22 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     return p
   }, [numPlayers, teamA, teamB, playWithin, teamsApply, indivEnabled])
 
-  // ── Nassau calculations ──
+  // ── Nassau / Match Play calculations ──
   const indivResults = useMemo(() =>
-    format === 'nassau' ? pairs.map(([a, b]) =>
-      calcIndiv(scores[a], scores[b], players[a].handicap, players[b].handicap, si, 2)
+    isNassauLike ? pairs.map(([a, b]) =>
+      calcIndiv(scores[a], scores[b], players[a].handicap, players[b].handicap, si, pressAtIndiv)
     ) : []
-  , [scores, pairs, players, si, format])
+  , [scores, pairs, players, si, isNassauLike, pressAtIndiv])
 
   const indivMoney = useMemo(() =>
     indivResults.map(r => calcMoney(r, betValues))
   , [indivResults, betValues])
 
   const teamResult = useMemo(() =>
-    format === 'nassau' && numPlayers === 4
-      ? calcTeam(scores, players, teamA, teamB, si, 4)
+    isNassauLike && numPlayers === 4
+      ? calcTeam(scores, players, teamA, teamB, si, pressAtTeam)
       : null
-  , [scores, players, teamA, teamB, si, numPlayers, format])
+  , [scores, players, teamA, teamB, si, numPlayers, isNassauLike, pressAtTeam])
 
   const teamMoney = useMemo(() =>
     teamResult ? calcMoney(teamResult, betValues) : null
@@ -116,7 +124,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   // ── Money per player ──
   const playerMoney = useMemo(() => {
     const m = players.map(() => 0)
-    if (format === 'nassau') {
+    if (isNassauLike) {
       indivMoney.forEach((im, mi) => {
         const [a, b] = pairs[mi]
         m[a] += im.grand; m[b] -= im.grand
@@ -133,7 +141,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       medalResult.money.forEach((v, i) => { m[i] = v })
     }
     return m
-  }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, format, pairs, teamA, teamB, players])
+  }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, format, isNassauLike, pairs, teamA, teamB, players])
 
   // ── Photo handling ──
   const handlePhotoSelect = (e) => {
@@ -204,7 +212,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       }))
       await supabase.from('round_players').insert(playerRows)
 
-      if (format === 'nassau' && indivMoney.length > 0) {
+      if (isNassauLike && indivMoney.length > 0) {
         const matchupRows = pairs.map(([a, b], mi) => {
           const m = indivMoney[mi]
           return {
@@ -483,12 +491,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             lowestHcp={lowestHcp} teamA={teamA}/>
 
           {/* Format results */}
-          {format === 'nassau' && (
+          {isNassauLike && (
             <>
               <div style={{ height: '0.5px', background: 'var(--border)', margin: '4px 0 12px' }}/>
               <NassauResults pairs={pairs} players={players} indivResults={indivResults}
                 indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
-                tLA={tLA} tLB={tLB} betValues={betValues}/>
+                tLA={tLA} tLB={tLB} betValues={betValues}
+                title={format === 'matchplay' ? 'Resultados Match Play' : 'Resultados Nassau'}/>
             </>
           )}
           {format === 'skins' && skinsResult && (
@@ -979,10 +988,10 @@ function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
   )
 }
 
-function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, teamMoney, tLA, tLB, betValues }) {
+function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, teamMoney, tLA, tLB, betValues, title = 'Resultados Nassau' }) {
   return (
     <div className="card">
-      <h2>Resultados Nassau</h2>
+      <h2>{title}</h2>
       {pairs.length === 0 && (
         <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
           Nenhum confronto individual configurado nesta rodada.
@@ -1138,4 +1147,4 @@ function StablefordResults({ players, result, betUnit }) {
   )
 }
      
-     
+       
