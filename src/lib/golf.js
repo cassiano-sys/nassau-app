@@ -61,8 +61,12 @@ export function calcSegment(pts, pressAt) {
   }
 }
  
-export function segMoney(seg, unit) {
-  const main  = Math.sign(seg.mainScore) * unit
+// mainMultiplier: normally 1 (the opening bet is worth the same as each
+// press). Catraca uses 2 — the opening Front9/Back9 bet counts double the
+// per-press unit, while every press that fires afterward is still worth
+// exactly one unit.
+export function segMoney(seg, unit, mainMultiplier = 1) {
+  const main  = Math.sign(seg.mainScore) * unit * mainMultiplier
   const press = seg.pressScores.reduce((s, r) => s + Math.sign(r) * unit, 0)
   return { main, press, total: main + press }
 }
@@ -127,10 +131,10 @@ export function calcTeam(grossAll, players, teamA, teamB, si, pressAt = 4) {
   }
 }
  
-export function calcMoney(result, betValues) {
+export function calcMoney(result, betValues, mainMultiplier = 1) {
   const { frontVal: fv, backVal: bv, totalVal: tv } = betValues
-  const mF = segMoney(result.front, fv)
-  const mB = segMoney(result.back,  bv)
+  const mF = segMoney(result.front, fv, mainMultiplier)
+  const mB = segMoney(result.back,  bv, mainMultiplier)
   const mT = Math.sign(result.total18) * tv
   return { front: mF, back: mB, total18: mT, grand: mF.total + mB.total + mT }
 }
