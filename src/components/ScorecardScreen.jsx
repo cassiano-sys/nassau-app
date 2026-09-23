@@ -1,4 +1,4 @@
-        import { useState, useEffect, useMemo, useRef } from 'react'
+         import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
@@ -927,14 +927,46 @@ function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
           Confiança da leitura: <strong>{confLbl}</strong>
           {photoResult.notes && <><br/><em style={{fontSize:11}}>{photoResult.notes}</em></>}
         </p>
-        <p style={{ fontSize: 12, color: 'var(--gold)', marginBottom: 12 }}>
+        <p style={{ fontSize: 12, color: 'var(--gold)', marginBottom: 4 }}>
           Toque em qualquer número para corrigir. Campos em branco = buraco não jogado.
         </p>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+          💡 Pra conferir mais rápido: some as tacadas de cada jogador no cartão de papel e compare com o <strong style={{color:'var(--gold)'}}>Total</strong> que aparece embaixo do nome dele — bate mais rápido que checar buraco a buraco.
+        </p>
 
-        {players.map((p, pi) => (
+        {players.map((p, pi) => {
+          const row = editScores[pi] || []
+          const sumOf = (vals) => vals.reduce((s, v) => s + (v ?? 0), 0)
+          const frontVals = row.slice(0, 9)
+          const backVals  = row.slice(9, 18)
+          const frontFilled = frontVals.filter(v => v !== null && v !== undefined).length
+          const backFilled  = backVals.filter(v => v !== null && v !== undefined).length
+          const frontSum = sumOf(frontVals)
+          const backSum  = sumOf(backVals)
+          return (
           <div key={pi} style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: pi % 2 === 0 ? '#7ab5f0' : '#f07a7a', marginBottom: 6 }}>
-              {p.name} — HCP {p.handicap}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: pi % 2 === 0 ? '#7ab5f0' : '#f07a7a' }}>
+                {p.name} — HCP {p.handicap}
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Ida{frontFilled < 9 ? ` ${frontFilled}/9` : ''}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--serif)' }}>{frontSum}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Volta{backFilled < 9 ? ` ${backFilled}/9` : ''}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--cream)', fontFamily: 'var(--serif)' }}>{backSum}</div>
+                </div>
+                <div style={{ textAlign: 'center', paddingLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div style={{ fontSize: 8, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--gold)', fontFamily: 'var(--serif)' }}>{frontSum + backSum}</div>
+                </div>
+              </div>
             </div>
             <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted)' }}>Front 9</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 3, marginBottom: 6 }}>
@@ -975,7 +1007,8 @@ function PhotoConfirm({ players, photoResult, par, onConfirm, onRetry }) {
               ))}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       <button className="btn-primary" onClick={() => onConfirm(editScores)} style={{ marginBottom: 10 }}>
@@ -1147,4 +1180,3 @@ function StablefordResults({ players, result, betUnit }) {
   )
 }
      
-       
