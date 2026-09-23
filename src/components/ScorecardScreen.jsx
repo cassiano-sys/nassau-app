@@ -4,7 +4,7 @@ import {
   HOLES, FRONT, BACK,
   getStrokesGlobal, getStrokesPair,
   calcIndiv, calcTeam, calcMoney, segMoney,
-  calcSkins, calcStableford, cmp,
+  calcSkins, calcStableford, calcMedal, cmp,
 } from '../lib/golf'
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
@@ -108,6 +108,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     format === 'stableford' ? calcStableford(scores, players, si, par, betUnit) : null
   , [scores, players, si, par, betUnit, format])
 
+  // ── Medal ──
+  const medalResult = useMemo(() =>
+    format === 'medal' ? calcMedal(scores, players, si, betValues) : null
+  , [scores, players, si, betValues, format])
+
   // ── Money per player ──
   const playerMoney = useMemo(() => {
     const m = players.map(() => 0)
@@ -124,9 +129,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       skinsResult.money.forEach((v, i) => { m[i] = v })
     } else if (format === 'stableford' && stableResult) {
       stableResult.money.forEach((v, i) => { m[i] = v })
+    } else if (format === 'medal' && medalResult) {
+      medalResult.money.forEach((v, i) => { m[i] = v })
     }
     return m
-  }, [indivMoney, teamMoney, skinsResult, stableResult, format, pairs, teamA, teamB, players])
+  }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, format, pairs, teamA, teamB, players])
 
   // ── Photo handling ──
   const handlePhotoSelect = (e) => {
@@ -466,7 +473,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
           {/* Live scores */}
           <LiveScores format={format} pairs={pairs} players={players} indivResults={indivResults}
             indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
-            skinsResult={skinsResult} stableResult={stableResult}
+            skinsResult={skinsResult} stableResult={stableResult} medalResult={medalResult}
             tLA={tLA} tLB={tLB} betValues={betValues} betUnit={betUnit} scores={scores}/>
         </div>
       ) : (
@@ -489,6 +496,9 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
           )}
           {format === 'stableford' && stableResult && (
             <StablefordResults players={players} result={stableResult} betUnit={betUnit}/>
+          )}
+          {format === 'medal' && medalResult && (
+            <MedalResults players={players} result={medalResult} betValues={betValues}/>
           )}
 
           {/* Final money — números grandes */}
@@ -520,7 +530,24 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResult, teamMoney,
-  skinsResult, stableResult, tLA, tLB, betValues, betUnit, scores }) {
+  skinsResult, stableResult, medalResult, tLA, tLB, betValues, betUnit, scores }) {
+
+  if (format === 'medal' && medalResult) return (
+    <div className="card">
+      <h2>Medal</h2>
+      {players.map((p, pi) => (
+        <div key={pi} className="seg-row">
+          <span>{p.name}</span>
+          <span style={{ color: 'var(--gold)', fontWeight: 700, fontSize: 13 }}>
+            F {medalResult.front[pi]} · B {medalResult.back[pi]} · T {medalResult.total[pi]}
+          </span>
+        </div>
+      ))}
+      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
+        Totais líquidos (tacadas) até agora — menor número lidera cada segmento.
+      </div>
+    </div>
+  )
 
   if (format === 'skins' && skinsResult) return (
     <div className="card">
@@ -1050,6 +1077,43 @@ function SkinsResults({ players, result, betUnit }) {
   )
 }
 
+function MedalResults({ players, result, betValues }) {
+  const segs = [
+    { key: 'front', label: 'Front 9',  totals: result.front, money: result.frontMoney, val: betValues.frontVal },
+    { key: 'back',  label: 'Back 9',   totals: result.back,  money: result.backMoney,  val: betValues.backVal },
+    { key: 'total', label: 'Total 18', totals: result.total, money: result.totalMoney, val: betValues.totalVal },
+  ]
+  return (
+    <div className="card">
+      <h2>Resultado Medal</h2>
+      {segs.map(seg => {
+        const min = Math.min(...seg.totals)
+        const winners = seg.totals.map((t, pi) => t === min ? pi : -1).filter(pi => pi >= 0)
+        return (
+          <div key={seg.key} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--muted)', marginBottom: 6 }}>
+              {seg.label} · R${seg.val}
+            </div>
+            {players.map((p, pi) => (
+              <div key={pi} className="seg-row">
+                <div>
+                  <span style={{ fontWeight: winners.includes(pi) ? 700 : 400, color: winners.includes(pi) ? 'var(--gold)' : 'var(--cream)' }}>
+                    {winners.includes(pi) ? '🏆 ' : ''}{p.name}
+                  </span>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{seg.totals[pi]} tacadas líq.</div>
+                </div>
+                <span className={seg.money[pi] > 0 ? 'pos' : 'neu'} style={{ fontWeight: 700, fontSize: 14 }}>
+                  {seg.money[pi] > 0 ? `+R$ ${seg.money[pi]}` : '–'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function StablefordResults({ players, result, betUnit }) {
   const sorted = [...players.map((p, i) => ({ ...p, pts: result.points[i], i }))]
     .sort((a, b) => b.pts - a.pts)
@@ -1073,4 +1137,5 @@ function StablefordResults({ players, result, betUnit }) {
     </div>
   )
 }
+     
      
