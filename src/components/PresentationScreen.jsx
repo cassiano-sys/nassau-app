@@ -76,9 +76,9 @@ export default function PresentationScreen({ onBack }) {
       }}>
         {current_player?.money > 0 && (
           <img src="/mascot/comemorando.jpg" alt="" style={{
-            width: 84, height: 84, borderRadius: '50%', objectFit: 'cover',
-            border: '2px solid var(--gold)', marginBottom: 14,
-            boxShadow: '0 8px 20px rgba(0,0,0,0.35)',
+            width: 170, height: 170, borderRadius: '50%', objectFit: 'cover',
+            border: '3px solid var(--gold)', marginBottom: 18,
+            boxShadow: '0 14px 34px -6px rgba(0,0,0,0.55)',
           }}/>
         )}
         <div style={{
