@@ -74,6 +74,13 @@ export default function PresentationScreen({ onBack }) {
         transition: 'all 0.4s ease',
         textAlign: 'center',
       }}>
+        {current_player?.money > 0 && (
+          <img src="/mascot/comemorando.jpg" alt="" style={{
+            width: 84, height: 84, borderRadius: '50%', objectFit: 'cover',
+            border: '2px solid var(--gold)', marginBottom: 14,
+            boxShadow: '0 8px 20px rgba(0,0,0,0.35)',
+          }}/>
+        )}
         <div style={{
           fontFamily: 'var(--serif)', fontSize: 36, fontWeight: 600,
           color: 'var(--cream)', textAlign: 'center',
