@@ -209,7 +209,17 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       }
       uid = userData.user.id
 
-      const { data: round, error: rErr } = await supabase.from('rounds').insert({
+      // Gera o id da rodada aqui mesmo, em vez de pedir pro Postgres gerar
+      // e devolver com `.select().single()`. O Postgres aplica a política
+      // de LEITURA também sobre o retorno de um INSERT ... RETURNING — e é
+      // exatamente essa checagem (não a de gravação) que estava disparando
+      // o erro "new row violates row-level security policy", mesmo com a
+      // política de inserção liberada. Gerando o id no cliente, não
+      // precisamos mais pedir nada de volta: já sabemos o id de antemão.
+      const roundId = crypto.randomUUID()
+
+      const { error: rErr } = await supabase.from('rounds').insert({
+        id:          roundId,
         user_id:     uid,
         format,
         course_name: course?.name || 'Campo',
@@ -217,11 +227,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         played_at:   new Date().toISOString(),
         bet_values:  betValues,
         num_players: numPlayers,
-      }).select().single()
+      })
       if (rErr) throw rErr
 
       const playerRows = players.map((p, pi) => ({
-        round_id:      round.id,
+        round_id:      roundId,
         user_id:       uid,
         player_name:   p.name,
         handicap:      p.handicap,
@@ -235,7 +245,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         const matchupRows = pairs.map(([a, b], mi) => {
           const m = indivMoney[mi]
           return {
-            round_id: round.id,
+            round_id: roundId,
             type:     'individual',
             player_a: players[a].name,
             player_b: players[b].name,
@@ -250,7 +260,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
           const tLA = teamA.map(i => players[i].name).join('/')
           const tLB = teamB.map(i => players[i].name).join('/')
           matchupRows.push({
-            round_id: round.id,
+            round_id: roundId,
             type:     'team',
             player_a: tLA,
             player_b: tLB,
