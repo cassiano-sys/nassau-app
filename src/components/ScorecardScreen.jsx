@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
-  getStrokesGlobal, getStrokesPair,
+  getStrokesGlobal,
   calcIndiv, calcTeam, calcMoney, segMoney,
   calcSkins, calcStableford, calcMedal, cmp,
 } from '../lib/golf'
@@ -31,6 +31,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   const [tab, setTab]           = useState('card') // card | results
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [quickEntry, setQuickEntry] = useState(false) // grid completo em vez de buraco a buraco
 
   // Photo states
@@ -193,7 +194,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
  // ── Save round ──
   const saveRound = async () => {
-    setSaving(true)
+    setSaving(true); setSaveError('')
     try {
       const { data: round, error: rErr } = await supabase.from('rounds').insert({
         user_id:     session.user.id,
@@ -259,6 +260,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       return
     } catch (e) {
       console.error('Save error:', e)
+      setSaveError(e?.message || e?.error_description || 'Erro desconhecido ao salvar. Tente novamente.')
     }
     setSaving(false)
   }
@@ -532,9 +534,14 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
           {/* Save — ao concluir, segue direto para o Modo Apresentação */}
           <button className="btn-green" onClick={saveRound} disabled={saving || saved}
-            style={{ marginBottom: 10 }}>
+            style={{ marginBottom: saveError ? 6 : 10 }}>
             {saving || saved ? 'Salvando...' : '💾  Salvar rodada'}
           </button>
+          {saveError && (
+            <p style={{ color: 'var(--red, #c0524a)', fontSize: 12.5, textAlign: 'center', marginBottom: 10, lineHeight: 1.5 }}>
+              Não foi possível salvar: {saveError}
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -692,7 +699,7 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
     HOLES.forEach((_, i) => {
       const g = scores[pi][i]
       if (g !== null) {
-        const st = getStrokesPair(0, p.handicap, si, i)
+        const st = getStrokesGlobal(p.handicap, lowestHcp, si, i)
         if (i < 9) { f9G+=g; f9N+=g-st; f9C++ } else { b9G+=g; b9N+=g-st; b9C++ }
       }
     })
@@ -748,7 +755,7 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
                     </td>
                     {holes.map(h=>{
                       const i=h-1, g=scores[pi][i]
-                      const net2 = g!==null ? g - getStrokesPair(0,p.handicap,si,i) : null
+                      const net2 = g!==null ? g - getStrokesGlobal(p.handicap, lowestHcp, si, i) : null
                       return (
                         <td key={h} style={{ textAlign:'center', padding:'5px 2px' }}>
                           {g!==null?(
