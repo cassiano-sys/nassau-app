@@ -126,7 +126,11 @@ export default function HomeScreen({ nav, session }) {
 
         {!loading && rounds.length === 0 && (
           <div className="empty-state">
-            <div className="icon">🏌️</div>
+            <img src="/mascot/retrato.jpg" alt="" style={{
+              width: 64, height: 64, borderRadius: '50%', objectFit: 'cover',
+              border: '2px solid var(--gold)', margin: '0 auto 12px', display: 'block',
+              filter: 'saturate(0.9)',
+            }}/>
             <p>Nenhuma rodada ainda.<br/>Toque em <strong>Nova Rodada</strong> para começar.</p>
           </div>
         )}
