@@ -195,6 +195,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
  // ── Save round ──
   const saveRound = async () => {
     setSaving(true); setSaveError('')
+    let uid = null
     try {
       // Busca o usuário direto do servidor (em vez de confiar no `session`
       // recebido por prop) para garantir que o user_id gravado é exatamente
@@ -206,7 +207,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       if (userErr || !userData?.user) {
         throw new Error('Sua sessão expirou. Saia e entre de novo antes de salvar a rodada.')
       }
-      const uid = userData.user.id
+      uid = userData.user.id
 
       const { data: round, error: rErr } = await supabase.from('rounds').insert({
         user_id:     uid,
@@ -272,7 +273,18 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       return
     } catch (e) {
       console.error('Save error:', e)
-      setSaveError(e?.message || e?.error_description || 'Erro desconhecido ao salvar. Tente novamente.')
+      let msg = e?.message || e?.error_description || 'Erro desconhecido ao salvar. Tente novamente.'
+      // Diagnóstico temporário: compara o id que o app tentou gravar com o
+      // que o servidor realmente enxerga como auth.uid() para esta mesma
+      // sessão — se forem diferentes, achamos a causa da violação de RLS.
+      // (depende da função public.whoami() existir no banco; se não existir
+      // ainda, essa parte simplesmente é ignorada.)
+      try {
+        const { data: whoamiUid } = await supabase.rpc('whoami')
+        msg += ` [debug: app=${uid} servidor=${whoamiUid ?? 'null'}]`
+      } catch {}
+      console.error('Save error uid check — app uid:', uid)
+      setSaveError(msg)
     }
     setSaving(false)
   }
