@@ -196,8 +196,20 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   const saveRound = async () => {
     setSaving(true); setSaveError('')
     try {
+      // Busca o usuário direto do servidor (em vez de confiar no `session`
+      // recebido por prop) para garantir que o user_id gravado é exatamente
+      // o mesmo que o Postgres vai enxergar em auth.uid() ao checar a regra
+      // de segurança — evita o erro "new row violates row-level security
+      // policy" quando o estado local ficou dessincronizado da sessão real
+      // (ex.: login feito em outra aba, sessão trocada em segundo plano).
+      const { data: userData, error: userErr } = await supabase.auth.getUser()
+      if (userErr || !userData?.user) {
+        throw new Error('Sua sessão expirou. Saia e entre de novo antes de salvar a rodada.')
+      }
+      const uid = userData.user.id
+
       const { data: round, error: rErr } = await supabase.from('rounds').insert({
-        user_id:     session.user.id,
+        user_id:     uid,
         format,
         course_name: course?.name || 'Campo',
         course_id:   course?.id || 'custom',
@@ -209,7 +221,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
       const playerRows = players.map((p, pi) => ({
         round_id:      round.id,
-        user_id:       session.user.id,
+        user_id:       uid,
         player_name:   p.name,
         handicap:      p.handicap,
         gross_scores:  scores[pi],
