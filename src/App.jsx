@@ -54,7 +54,11 @@ function Splash() {
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
       minHeight:'100vh', background:'#0d1a0f', color:'#c9a84c',
       fontFamily:"'Cormorant Garamond', Georgia, serif" }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>⛳</div>
+      <img src="/mascot/retrato.jpg" alt="" style={{
+        width: 96, height: 96, borderRadius: '50%', objectFit: 'cover',
+        border: '2px solid #c9a84c', marginBottom: 18,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+      }}/>
       <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4 }}>Caddie<span style={{ color: '#c9a84c' }}>Stakes</span></div>
     </div>
   )
