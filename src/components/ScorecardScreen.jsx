@@ -524,6 +524,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
             skinsResult={skinsResult} stableResult={stableResult} medalResult={medalResult}
             tLA={tLA} tLB={tLB} betValues={betValues} betUnit={betUnit} scores={scores}/>
+
+          {/* Atalho pra quem termina de lançar os scores e vai direto encerrar
+              por aqui, sem pensar em trocar de aba manualmente pra salvar. */}
+          <button className="btn-primary" onClick={() => setTab('results')}
+            style={{ marginTop: 16 }}>
+            📊  Ver Resumo e Salvar
+          </button>
         </div>
       ) : (
         <div className="screen-body">
