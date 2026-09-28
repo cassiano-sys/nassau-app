@@ -47,9 +47,13 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ScorecardScreen({ config, onFinish, onBack, session }) {
-  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual } = config
+  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled } = config
   // Retrocompatível: rodadas antigas (ou config sem o campo) tratam todo mundo como "joga individual"
   const indivEnabled = playsIndividual || players.map(() => true)
+  // Retrocompatível: configs antigas não tinham esse campo — nesse caso a
+  // dupla sempre valia, então o default é "ligado" pra não mudar o
+  // comportamento de rodadas já em andamento.
+  const teamsOn = teamsEnabled !== false
 
   const [scores, setScores]     = useState(() => players.map(() => Array(18).fill(null)))
   const [activeHole, setActiveHole] = useState(0)
@@ -103,7 +107,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   // contra todos — então o filtro de "mesma dupla" não pode ser aplicado,
   // senão o confronto entre os jogadores 0 e 1 (dupla padrão) é descartado
   // por engano.
-  const teamsApply = isNassauLike && numPlayers === 4
+  const teamsApply = isNassauLike && numPlayers === 4 && teamsOn
   const pairs = useMemo(() => {
     const p = []
     for (let a = 0; a < numPlayers; a++)
@@ -127,11 +131,14 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     indivResults.map(r => calcMoney(r, betValues, mainMultiplier))
   , [indivResults, betValues, mainMultiplier])
 
+  // Dupla só entra na conta quando o toggle "Jogar em duplas" estava ligado
+  // no setup. Desligado, os 4 jogadores disputam só os confrontos
+  // individuais acima (todos contra todos) — sem aposta de dupla A vs B.
   const teamResult = useMemo(() =>
-    isNassauLike && numPlayers === 4
+    isNassauLike && numPlayers === 4 && teamsOn
       ? calcTeam(scores, players, teamA, teamB, si, pressAtTeam)
       : null
-  , [scores, players, teamA, teamB, si, numPlayers, isNassauLike, pressAtTeam])
+  , [scores, players, teamA, teamB, si, numPlayers, isNassauLike, pressAtTeam, teamsOn])
 
   const teamMoney = useMemo(() =>
     teamResult ? calcMoney(teamResult, betValues, mainMultiplier) : null
