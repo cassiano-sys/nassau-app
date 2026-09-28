@@ -178,6 +178,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setPhotoError('')
     try {
       // Redimensiona antes de guardar - fotos de celular vêm enormes (às
       // vezes 8-12MB) e isso sozinho já derruba boa parte das leituras por
@@ -187,7 +188,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       setPhotoB64(base64)
     } catch (err) {
       console.error('Erro ao processar a foto:', err)
-      setPhotoError('Não foi possível processar essa foto. Tente outra.')
+      setPhotoError(`Não foi possível processar essa foto (${err.message || 'erro desconhecido'}). Tente outra.`)
     }
   }
 
@@ -272,7 +273,19 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         money_result:  playerMoney[pi],
         team:          teamA.includes(pi) ? 'A' : 'B',
       }))
-      await supabase.from('round_players').insert(playerRows)
+      // Sem checar o erro aqui, um insert que falhasse (RLS, coluna faltando,
+      // valor inválido, etc.) passava batido: o código seguia como se tivesse
+      // dado tudo certo, mostrava "salvo" e ia pra tela de apresentação - mas
+      // a rodada ficava sem jogadores/scores no banco (ou nem aparecia no
+      // Histórico depois). É exatamente o tipo de falha que parece "não
+      // salvou nada" pro usuário sem nenhuma pista do motivo.
+      const { error: prErr } = await supabase.from('round_players').insert(playerRows)
+      if (prErr) {
+        // Desfaz o insert de "rounds" que já tinha entrado, senão sobra uma
+        // rodada fantasma (sem jogadores) no Histórico a cada vez que isso falhar.
+        await supabase.from('rounds').delete().eq('id', roundId)
+        throw prErr
+      }
 
       if (isNassauLike && indivMoney.length > 0) {
         const matchupRows = pairs.map(([a, b], mi) => {
@@ -306,7 +319,12 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             total_a:   teamMoney.total18,
           })
         }
-        await supabase.from('round_matchups').insert(matchupRows)
+        const { error: mErr } = await supabase.from('round_matchups').insert(matchupRows)
+        // Diferente de round_players, aqui NÃO desfazemos a rodada: os
+        // scores e o dinheiro por jogador já estão salvos corretamente, só
+        // o detalhamento por confronto (usado no H2H) que ficaria faltando.
+        // Melhor a rodada ficar salva com um aviso do que sumir inteira.
+        if (mErr) console.error('Erro ao salvar confrontos (round_matchups):', mErr.message)
       }
 
       setSaved(true)
@@ -361,6 +379,16 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
               </button>
               <input ref={fileRef} type="file" accept="image/*"
                 style={{ display: 'none' }} onChange={handlePhotoSelect}/>
+              {photoError && (
+                // Esse erro existia no código (setPhotoError) mas nunca tinha um
+                // lugar pra aparecer na tela - por isso, quando o processamento da
+                // foto falhava (formato de imagem não suportado, foto corrompida,
+                // etc.), o usuário só via "nada acontecer" ao selecionar a foto,
+                // sem nenhuma pista do motivo.
+                <p style={{ fontSize: 12, color: 'var(--red, #e05555)', marginTop: 10, lineHeight: 1.5 }}>
+                  ⚠️ {photoError}
+                </p>
+              )}
             </div>
             <div className="card" style={{ borderColor: 'rgba(68,136,204,0.3)' }}>
               <h3>Dicas para melhor leitura</h3>
