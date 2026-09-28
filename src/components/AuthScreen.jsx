@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+// Versão dos Termos de Uso / Política de Privacidade vigente no momento do
+// cadastro (mesma data mostrada em "Última atualização" nas duas páginas).
+// Atualize este valor sempre que o conteúdo de termos.html ou privacidade.html
+// mudar de forma relevante, para manter um registro de qual versão cada
+// usuário aceitou.
+const TERMS_VERSION = '2026-09'
+
 export default function AuthScreen({ onAuth }) {
   const [mode, setMode]       = useState('login') // login | signup | forgot
   const [email, setEmail]     = useState('')
@@ -18,7 +25,11 @@ export default function AuthScreen({ onAuth }) {
     if (mode === 'signup') {
       const { error: e } = await supabase.auth.signUp({
         email, password,
-        options: { data: { full_name: name } }
+        options: { data: {
+          full_name: name,
+          terms_version: TERMS_VERSION,
+          terms_accepted_at: new Date().toISOString(),
+        } }
       })
       if (e) return err(e.message)
       setSent(true)
@@ -161,3 +172,4 @@ export default function AuthScreen({ onAuth }) {
     </div>
   )
 }
+
