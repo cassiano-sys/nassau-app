@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import AuthScreen          from './components/AuthScreen'
+import ResetPasswordScreen from './components/ResetPasswordScreen'
 import HomeScreen          from './components/HomeScreen'
 import SetupScreen         from './components/SetupScreen'
 import ScorecardScreen     from './components/ScorecardScreen'
@@ -13,16 +14,26 @@ export default function App() {
   const [loading,    setLoading]    = useState(true)
   const [screen,     setScreen]     = useState('home')
   const [gameConfig, setGameConfig] = useState(null)
+  // Quando o usuário clica no link de "recuperar senha" do email, o Supabase
+  // abre uma sessão temporária e dispara o evento PASSWORD_RECOVERY (em vez
+  // de um login normal). Sem tratar isso à parte, a pessoa cairia direto na
+  // Home como se tivesse logado normalmente, sem nunca chegar a trocar a
+  // senha de fato.
+  const [passwordRecovery, setPasswordRecovery] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session); setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
+      setSession(s)
+    })
     return () => subscription.unsubscribe()
   }, [])
 
   if (loading) return <Splash />
+  if (passwordRecovery) return <ResetPasswordScreen onDone={() => setPasswordRecovery(false)}/>
   if (!session) return <AuthScreen onAuth={setSession} />
 
   const nav = (s) => setScreen(s)
