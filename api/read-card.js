@@ -1,6 +1,15 @@
 import https from 'https'
- export const config = { maxDuration: 60 }
-
+ 
+// Sem isso, a função roda no limite padrão da Vercel (10s no plano Hobby),
+// que é curto demais pra 1-2 imagens + um modelo de visão pensando antes de
+// responder. Isso por si só já explica boa parte das leituras que "falham"
+// sem nenhuma mensagem de erro - a função é encerrada antes mesmo do
+// try/catch abaixo rodar. 60s é o teto do plano Hobby; em um plano pago isso
+// pode subir ainda mais se precisar.
+export const config = {
+  maxDuration: 60,
+}
+ 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -111,6 +120,12 @@ export default async function handler(req, res) {
         })
       })
       r.on('error', reject)
+      // Timeout explícito na chamada pra Anthropic: sem isso, se a API travar
+      // a função fica pendurada até a Vercel matá-la à força (sem chegar a
+      // rodar o catch abaixo), e o front recebe um erro genérico de rede.
+      // Com o timeout aqui, a gente cai no catch normalmente e devolve uma
+      // resposta 200 com o motivo real em "notes".
+      r.setTimeout(50000, () => r.destroy(new Error('Timeout ao chamar a API de visão (50s)')))
       r.write(requestBody)
       r.end()
     })
