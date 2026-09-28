@@ -6,17 +6,42 @@ import {
   calcIndiv, calcTeam, calcMoney, segMoney,
   calcSkins, calcStableford, calcMedal, cmp,
 } from '../lib/golf'
+import { resizeImageToBase64 } from '../lib/image'
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
-
+// A leitura por foto envolve mandar até 2 imagens pra um modelo de visão e
+// esperar uma resposta com raciocínio (pode levar 15-30s+ numa foto grande).
+// Isso estoura fácil o tempo limite de uma função serverless comum, e quando
+// isso acontece a Vercel mata a função ANTES do try/catch do backend rodar -
+// ou seja, o front recebe um erro de rede genérico, sem nenhuma pista do que
+// houve. Por isso: (1) a imagem é redimensionada antes de enviar (ver
+// lib/image.js) pra reduzir muito o tamanho e o tempo de processamento, e
+// (2) aqui embaixo a gente dá um tempo limite explícito e guarda o motivo
+// real da falha (em vez de só "não deu"), pra conseguir diagnosticar se
+// acontecer de novo.
 async function readCardWithVision(imageBase64, players, si, par, handwritingBase64) {
-  const response = await fetch('/api/read-card', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageBase64, players, si, par, handwritingBase64 }),
-  })
-  if (!response.ok) throw new Error('Erro na leitura: ' + response.status)
-  return await response.json()
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 55000)
+  try {
+    const response = await fetch('/api/read-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, players, si, par, handwritingBase64 }),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '')
+      throw new Error(`Erro na leitura (HTTP ${response.status}): ${bodyText.slice(0, 300)}`)
+    }
+    return await response.json()
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new Error('A leitura demorou demais e foi cancelada (mais de 55s) - tente uma foto mais simples/bem iluminada, ou tente de novo.')
+    }
+    throw e
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 
@@ -150,16 +175,20 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, format, isNassauLike, pairs, teamA, teamB, players])
 
   // ── Photo handling ──
-  const handlePhotoSelect = (e) => {
+  const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const dataUrl = ev.target.result
+    try {
+      // Redimensiona antes de guardar - fotos de celular vêm enormes (às
+      // vezes 8-12MB) e isso sozinho já derruba boa parte das leituras por
+      // estourar o tempo/tamanho aceito pela função de leitura.
+      const { dataUrl, base64 } = await resizeImageToBase64(file, 1800, 0.85)
       setPhotoImg(dataUrl)
-      setPhotoB64(dataUrl.split(',')[1])
+      setPhotoB64(base64)
+    } catch (err) {
+      console.error('Erro ao processar a foto:', err)
+      setPhotoError('Não foi possível processar essa foto. Tente outra.')
     }
-    reader.readAsDataURL(file)
   }
 
   const processPhoto = async () => {
@@ -169,11 +198,15 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       const result = await readCardWithVision(photoB64, players, si, par, handwritingB64)
       setPhotoResult(result)
     } catch (e) {
-      // Even on error, show an empty editable table so user can fill manually
+      // Loga o motivo real (visível no F12 > Console) em vez de só engolir o
+      // erro - se voltar a falhar, dá pra saber se foi timeout, rede, ou algo
+      // do lado do servidor, ao invés de um "não deu" sem pista nenhuma.
+      console.error('Erro na leitura do cartão por foto:', e)
+      // Mesmo assim mostra a tabela vazia editável pra preencher na mão
       setPhotoResult({
         scores: players.map(() => Array(18).fill(null)),
         confidence: 'low',
-        notes: 'Leitura automática não foi possível. Preencha ou corrija os scores abaixo.'
+        notes: `Leitura automática não foi possível (${e.message || 'erro desconhecido'}). Preencha ou corrija os scores abaixo.`,
       })
     }
     setProcessing(false)
