@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { resizeImageToBase64 } from '../lib/image'
 
 function firstNameLower(fullName) {
   if (!fullName) return ''
@@ -402,15 +403,19 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
       .then(({ data }) => { setHwSample(data?.image_base64 || null); setHwLoading(false) })
   }, [session?.user?.id])
 
-  const handleHwSelect = (e) => {
+  const handleHwSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setHwPreview(ev.target.result)
-      setHwB64(ev.target.result.split(',')[1])
+    try {
+      // Redimensiona antes de guardar - essa amostra é reenviada junto em
+      // TODA leitura de cartão por foto, então se ela também vier gigante
+      // (foto de celular em alta resolução) só piora o risco de timeout.
+      const { dataUrl, base64 } = await resizeImageToBase64(file, 1000, 0.85)
+      setHwPreview(dataUrl)
+      setHwB64(base64)
+    } catch (err) {
+      console.error('Erro ao processar a amostra de caligrafia:', err)
     }
-    reader.readAsDataURL(file)
   }
 
   const saveHandwriting = async () => {
