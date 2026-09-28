@@ -31,6 +31,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [par,        setPar]        = useState([...COURSES[0].par])
   const [teamA,      setTeamA]      = useState([0, 1])
   const [teamB,      setTeamB]      = useState([2, 3])
+  const [teamsEnabled, setTeamsEnabled] = useState(true)
   const [playWithin, setPlayWithin] = useState(false)
   const [playsIndividual, setPlaysIndividual] = useState([true, true, true, true])
   const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
@@ -151,7 +152,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
       format,
       players: players.slice(0, numPlayers),
       course, si, par,
-      teamA, teamB, playWithin,
+      teamA, teamB, playWithin, teamsEnabled,
       playsIndividual: playsIndividual.slice(0, numPlayers),
       betValues: (isNassauLike(format) || format === 'medal') ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
       betUnit,
@@ -332,47 +333,77 @@ export default function SetupScreen({ onStart, onBack, session }) {
         {isNassauLike(format) && numPlayers === 4 && (
           <div className="card">
             <h2>Formação das duplas</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-              {Array.from({ length: 4 }, (_, i) => (
-                <button key={i}
-                  onClick={() => toggleTeam(i)}
-                  style={{
-                    padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
-                    border: `1.5px solid ${teamA.includes(i) ? '#4a7acc' : '#aa4444'}`,
-                    background: teamA.includes(i) ? 'rgba(74,122,204,0.12)' : 'rgba(170,68,68,0.12)',
-                    fontFamily: 'var(--sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                  }}>
-                  <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1.5px', color: teamA.includes(i) ? '#6aaaee' : '#ee6666', fontWeight: 600 }}>
-                    {teamA.includes(i) ? 'Dupla A' : 'Dupla B'}
-                  </span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cream)' }}>
-                    {players[i].name || `J${i+1}`}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 12 }}>
-              <span style={{ color: '#6aaaee' }}>A: {teamA.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
-              <span style={{ color: '#ee6666' }}>B: {teamB.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
-            </div>
-            {/* Toggle individual dentro da dupla */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', paddingTop: 10, borderTop: '0.5px solid var(--border)' }}
-              onClick={() => setPlayWithin(v => !v)}>
+            {/* Toggle mestre: liga/desliga o jogo em duplas. Desligado, os 4
+                jogadores disputam só os confrontos individuais entre si (todos
+                contra todos) e nenhum dinheiro de "dupla A vs dupla B" entra
+                no resultado. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 14 }}
+              onClick={() => setTeamsEnabled(v => !v)}>
               <div style={{
                 width: 44, height: 24, borderRadius: 12, padding: 2,
-                background: playWithin ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                background: teamsEnabled ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
                 transition: 'background .2s', flexShrink: 0,
               }}>
                 <div style={{
                   width: 20, height: 20, background: '#fff', borderRadius: '50%',
-                  transform: playWithin ? 'translateX(20px)' : 'translateX(0)',
+                  transform: teamsEnabled ? 'translateX(20px)' : 'translateX(0)',
                   transition: 'transform .2s',
                 }}/>
               </div>
               <span style={{ fontSize: 13, color: 'var(--cream)' }}>
-                Individual dentro da dupla ({playWithin ? 'sim' : 'não'})
+                Jogar em duplas ({teamsEnabled ? 'sim' : 'não'})
               </span>
             </div>
+            {!teamsEnabled && (
+              <p style={{ fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5, marginBottom: 4 }}>
+                Sem duplas: os 4 jogadores disputam só os confrontos individuais entre si (todos contra todos), sem aposta de dupla A vs dupla B.
+              </p>
+            )}
+            {teamsEnabled && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  {Array.from({ length: 4 }, (_, i) => (
+                    <button key={i}
+                      onClick={() => toggleTeam(i)}
+                      style={{
+                        padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+                        border: `1.5px solid ${teamA.includes(i) ? '#4a7acc' : '#aa4444'}`,
+                        background: teamA.includes(i) ? 'rgba(74,122,204,0.12)' : 'rgba(170,68,68,0.12)',
+                        fontFamily: 'var(--sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                      }}>
+                      <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1.5px', color: teamA.includes(i) ? '#6aaaee' : '#ee6666', fontWeight: 600 }}>
+                        {teamA.includes(i) ? 'Dupla A' : 'Dupla B'}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cream)' }}>
+                        {players[i].name || `J${i+1}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 12 }}>
+                  <span style={{ color: '#6aaaee' }}>A: {teamA.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
+                  <span style={{ color: '#ee6666' }}>B: {teamB.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
+                </div>
+                {/* Toggle individual dentro da dupla */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', paddingTop: 10, borderTop: '0.5px solid var(--border)' }}
+                  onClick={() => setPlayWithin(v => !v)}>
+                  <div style={{
+                    width: 44, height: 24, borderRadius: 12, padding: 2,
+                    background: playWithin ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                    transition: 'background .2s', flexShrink: 0,
+                  }}>
+                    <div style={{
+                      width: 20, height: 20, background: '#fff', borderRadius: '50%',
+                      transform: playWithin ? 'translateX(20px)' : 'translateX(0)',
+                      transition: 'transform .2s',
+                    }}/>
+                  </div>
+                  <span style={{ fontSize: 13, color: 'var(--cream)' }}>
+                    Individual dentro da dupla ({playWithin ? 'sim' : 'não'})
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         )}
 
