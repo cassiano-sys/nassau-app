@@ -63,7 +63,7 @@ export default function BugReportButton({ session, screen }) {
               🐞 Relatar um problema
             </div>
             <p style={{ fontSize: 12, color: '#9a9186', marginBottom: 12, lineHeight: 1.5 }}>
-              Conta rapidinho o que aconteceu — ao enviar, isso abre o WhatsApp com a mensagem pronta direto pro Cassiano.
+              Conta rapidinho o que aconteceu — ao enviar, isso abre o WhatsApp com a mensagem pronta direto para o suporte do Caddie Stakes.
             </p>
             <textarea
               autoFocus
