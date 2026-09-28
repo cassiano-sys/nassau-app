@@ -125,6 +125,19 @@ export default function AuthScreen({ onAuth }) {
         <input className="text-input" type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={e => setPassword(e.target.value)}/>
       </div>
 
+      {mode === 'signup' && (
+        <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6, margin: '0 0 14px' }}>
+          Ao criar sua conta, você concorda com os{' '}
+          <a href="https://caddiestakesgolf.com/termos.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)' }}>
+            Termos de Uso
+          </a>{' '}
+          e a{' '}
+          <a href="https://caddiestakesgolf.com/privacidade.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold)' }}>
+            Política de Privacidade
+          </a>.
+        </p>
+      )}
+
       <button className="btn-primary" onClick={handleEmail} disabled={loading || !email || !password}>
         {loading ? '...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
       </button>
