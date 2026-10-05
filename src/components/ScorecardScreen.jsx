@@ -47,7 +47,7 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ScorecardScreen({ config, onFinish, onBack, session }) {
-  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled } = config
+  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled, medalSide } = config
   // Retrocompatível: rodadas antigas (ou config sem o campo) tratam todo mundo como "joga individual"
   const indivEnabled = playsIndividual || players.map(() => true)
   // Retrocompatível: configs antigas não tinham esse campo — nesse caso a
@@ -166,8 +166,14 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       : null
   , [scores, players, si, betValues, format])
 
+  // ── Medal adicional (aposta extra em paralelo ao formato principal) ──
+  const medalSideResult = useMemo(() =>
+    medalSide && format !== 'medal' ? calcMedal(scores, players, si, medalSide) : null
+  , [scores, players, si, medalSide, format])
+
   // ── Money per player ──
-  const playerMoney = useMemo(() => {
+  // mainMoney = só o formato principal; playerMoney = principal + Medal extra.
+  const mainMoney = useMemo(() => {
     const m = players.map(() => 0)
     if (isNassauLike) {
       indivMoney.forEach((im, mi) => {
@@ -190,6 +196,17 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     }
     return m
   }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, sindResult, format, isNassauLike, pairs, teamA, teamB, players])
+
+  const playerMoney = useMemo(() =>
+    medalSideResult
+      ? mainMoney.map((v, i) => Math.round((v + medalSideResult.money[i]) * 100) / 100)
+      : mainMoney
+  , [mainMoney, medalSideResult])
+
+  const mainFormatLabel = {
+    nassau: 'Nassau', matchplay: 'Match Play', catraca: 'Catraca', medal: 'Medal',
+    skins: 'Skins', stableford: 'Stableford', sindicato: 'Sindicato',
+  }[format] || format
 
   // ── Photo handling ──
   const handlePhotoSelect = async (e) => {
@@ -276,7 +293,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
         course_name: course?.name || 'Campo',
         course_id:   course?.id || 'custom',
         played_at:   new Date().toISOString(),
-        bet_values:  betValues,
+        bet_values:  medalSideResult ? { ...betValues, medalSide } : betValues,
         num_players: numPlayers,
       })
       if (rErr) throw rErr
@@ -603,6 +620,9 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
             skinsResult={skinsResult} stableResult={stableResult} medalResult={medalResult}
             sindResult={sindResult}
             tLA={tLA} tLB={tLB} betValues={betValues} betUnit={betUnit} scores={scores}/>
+          {medalSideResult && (
+            <MedalLive players={players} result={medalSideResult} title="🎖️ Medal (aposta extra)"/>
+          )}
 
           {/* Atalho pra quem termina de lançar os scores e vai direto encerrar
               por aqui, sem pensar em trocar de aba manualmente pra salvar. */}
@@ -639,6 +659,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
           {format === 'sindicato' && sindResult && (
             <SindicatoResults players={players} result={sindResult} betValues={betValues} par={par}/>
           )}
+          {medalSideResult && (
+            <MedalResults players={players} result={medalSideResult} betValues={medalSide}
+              title="Resultado Medal (aposta extra)"/>
+          )}
 
           {/* Final money — números grandes */}
           <div className="card">
@@ -650,6 +674,12 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                   <div className={`saldo-val ${playerMoney[pi] > 0 ? 'pos' : playerMoney[pi] < 0 ? 'neg' : 'neu'}`}>
                     {playerMoney[pi] > 0 ? '+' : ''}R${fmtBRL(playerMoney[pi])}
                   </div>
+                  {medalSideResult && (
+                    <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 4, lineHeight: 1.4 }}>
+                      {mainFormatLabel} {mainMoney[pi] > 0 ? '+' : mainMoney[pi] < 0 ? '−' : ''}{fmtBRL(mainMoney[pi])}
+                      {' · '}Medal {medalSideResult.money[pi] > 0 ? '+' : medalSideResult.money[pi] < 0 ? '−' : ''}{fmtBRL(Math.round(medalSideResult.money[pi] * 100) / 100)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -697,20 +727,7 @@ function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResu
   }
 
   if (format === 'medal' && medalResult) return (
-    <div className="card">
-      <h2>Medal</h2>
-      {players.map((p, pi) => (
-        <div key={pi} className="seg-row">
-          <span>{p.name}</span>
-          <span style={{ color: 'var(--gold)', fontWeight: 700, fontSize: 13 }}>
-            F {medalResult.front[pi]} · B {medalResult.back[pi]} · T {medalResult.total[pi]}
-          </span>
-        </div>
-      ))}
-      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
-        Totais líquidos (tacadas) até agora — menor número lidera cada segmento.
-      </div>
-    </div>
+    <MedalLive players={players} result={medalResult} title="Medal"/>
   )
 
   if (format === 'skins' && skinsResult) return (
@@ -1281,7 +1298,28 @@ function SkinsResults({ players, result, betUnit }) {
   )
 }
 
-function MedalResults({ players, result, betValues }) {
+// Placar corrido do Medal — usado tanto no formato Medal quanto no Medal
+// adicional (aposta extra somada a outro formato).
+function MedalLive({ players, result, title }) {
+  return (
+    <div className="card">
+      <h2>{title}</h2>
+      {players.map((p, pi) => (
+        <div key={pi} className="seg-row">
+          <span>{p.name}</span>
+          <span style={{ color: 'var(--gold)', fontWeight: 700, fontSize: 13 }}>
+            F {result.front[pi]} · B {result.back[pi]} · T {result.total[pi]}
+          </span>
+        </div>
+      ))}
+      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
+        Totais líquidos (tacadas) até agora — menor número lidera cada segmento.
+      </div>
+    </div>
+  )
+}
+
+function MedalResults({ players, result, betValues, title = 'Resultado Medal' }) {
   const segs = [
     { key: 'front', label: 'Front 9',  totals: result.front, money: result.frontMoney, val: betValues.frontVal },
     { key: 'back',  label: 'Back 9',   totals: result.back,  money: result.backMoney,  val: betValues.backVal },
@@ -1289,7 +1327,7 @@ function MedalResults({ players, result, betValues }) {
   ]
   return (
     <div className="card">
-      <h2>Resultado Medal</h2>
+      <h2>{title}</h2>
       {segs.map(seg => {
         const min = Math.min(...seg.totals)
         const winners = seg.totals.map((t, pi) => t === min ? pi : -1).filter(pi => pi >= 0)
@@ -1306,8 +1344,8 @@ function MedalResults({ players, result, betValues }) {
                   </span>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>{seg.totals[pi]} tacadas líq.</div>
                 </div>
-                <span className={seg.money[pi] > 0 ? 'pos' : 'neu'} style={{ fontWeight: 700, fontSize: 14 }}>
-                  {seg.money[pi] > 0 ? `+R$ ${seg.money[pi]}` : '–'}
+                <span className={seg.money[pi] > 0 ? 'pos' : seg.money[pi] < 0 ? 'neg' : 'neu'} style={{ fontWeight: 700, fontSize: 14 }}>
+                  {seg.money[pi] > 0 ? `+R$ ${fmtBRL(seg.money[pi])}` : seg.money[pi] < 0 ? `−R$ ${fmtBRL(seg.money[pi])}` : '–'}
                 </span>
               </div>
             ))}
