@@ -7,6 +7,7 @@ import {
   calcSkins, calcStableford, calcMedal, calcSindicato, cmp,
 } from '../lib/golf'
 import { resizeImageToBase64 } from '../lib/image'
+import PixSettlement from './PixSettlement'
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
 // A leitura por foto envolve mandar até 2 imagens pra um modelo de visão e
@@ -684,6 +685,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
               ))}
             </div>
           </div>
+
+          {/* Acerto via PIX — quem paga quem, com QR / copia e cola */}
+          <PixSettlement
+            players={players.map((p, pi) => ({ name: p.name, handicap: p.handicap, money: playerMoney[pi] }))}
+            meIndex={0}
+            description={`Golfe ${course?.name || ''} ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`}
+          />
 
           {/* Save — ao concluir, segue direto para o Modo Apresentação */}
           <button className="btn-green" onClick={saveRound} disabled={saving || saved}
