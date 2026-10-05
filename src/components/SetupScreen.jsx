@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { COURSES } from '../lib/golf'
+import { COURSES, SINDICATO_DEFAULT_PCT } from '../lib/golf'
 import { supabase } from '../lib/supabase'
 
 const FORMATS = [
@@ -9,7 +9,12 @@ const FORMATS = [
   { id: 'medal',      label: 'Medal',      icon: '🎖️', desc: 'Stroke play: menor total líquido leva Front 9 / Back 9 / Total' },
   { id: 'skins',     label: 'Skins',      icon: '💰', desc: 'Cada buraco vale 1 skin. Empates acumulam.' },
   { id: 'stableford',label: 'Stableford', icon: '📊', desc: 'Pontos por buraco (birdie=3, par=2, bogey=1)' },
+  { id: 'sindicato', label: 'Sindicato',  icon: '🤝', desc: 'Só 3 ou 4 jogadores: 6 pts por buraco (4-2-0) ou 12 pts (6-4-2-0). Pote dividido por colocação' },
 ]
+
+// Sindicato só existe com 3 ou 4 jogadores (Six / Twelves).
+const SINDICATO_SIZES = [3, 4]
+const POSITION_LABELS = ['1º', '2º', '3º', '4º']
 
 // Match Play e Catraca reaproveitam toda a estrutura do Nassau (Front/Back/
 // Total, duplas, confrontos individuais) — o que muda entre os três é só o
@@ -36,6 +41,13 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [playsIndividual, setPlaysIndividual] = useState([true, true, true, true])
   const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
   const [betUnit,    setBetUnit]    = useState(20)
+  // Sindicato: pote total (cada um entra com pote ÷ nº de jogadores) e a
+  // divisão do pote por colocação, em %, separada para 3 e 4 jogadores.
+  const [potValue,   setPotValue]   = useState(120)
+  const [sindPct,    setSindPct]    = useState({
+    3: [...SINDICATO_DEFAULT_PCT[3]],
+    4: [...SINDICATO_DEFAULT_PCT[4]],
+  })
   const [savedPlayers, setSavedPlayers] = useState([]) // jogadores parceiros cadastrados
   const [savedCourses, setSavedCourses] = useState([]) // campos customizados cadastrados
   const [newCourseName, setNewCourseName] = useState('')
@@ -126,7 +138,26 @@ export default function SetupScreen({ onStart, onBack, session }) {
     }
   }
 
-  const canStart = players.slice(0, numPlayers).every(p => p.name.trim())
+  const isSindicato  = format === 'sindicato'
+  const sindPctNow   = sindPct[numPlayers] || []
+  const sindPctSum   = sindPctNow.reduce((a, b) => a + (Number(b) || 0), 0)
+  const sindValid    = !isSindicato || (
+    SINDICATO_SIZES.includes(numPlayers) && sindPctSum === 100 && potValue > 0
+  )
+
+  const chooseFormat = (id) => {
+    setFormat(id)
+    // Sindicato não aceita 2 jogadores — sobe para 3 automaticamente.
+    if (id === 'sindicato' && !SINDICATO_SIZES.includes(numPlayers)) setNumPlayers(3)
+  }
+
+  const updSindPct = (pos, v) =>
+    setSindPct(prev => ({
+      ...prev,
+      [numPlayers]: prev[numPlayers].map((x, i) => i === pos ? Number(v) : x),
+    }))
+
+  const canStart = players.slice(0, numPlayers).every(p => p.name.trim()) && sindValid
 
   const handleStart = () => {
     // Salva/atualiza os jogadores desta rodada como parceiros, pra sugerir
@@ -154,7 +185,9 @@ export default function SetupScreen({ onStart, onBack, session }) {
       course, si, par,
       teamA, teamB, playWithin, teamsEnabled,
       playsIndividual: playsIndividual.slice(0, numPlayers),
-      betValues: (isNassauLike(format) || format === 'medal') ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
+      betValues: isSindicato
+        ? { potValue, payoutPct: sindPctNow.map(Number) }
+        : (isNassauLike(format) || format === 'medal') ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
       betUnit,
       numPlayers,
     })
@@ -220,7 +253,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {FORMATS.map(f => (
               <button key={f.id}
-                onClick={() => setFormat(f.id)}
+                onClick={() => chooseFormat(f.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
@@ -247,6 +280,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
             {[2,3,4].map(n => (
               <button key={n}
                 className={`toggle-btn${numPlayers === n ? ' active' : ''}`}
+                disabled={isSindicato && !SINDICATO_SIZES.includes(n)}
+                style={isSindicato && !SINDICATO_SIZES.includes(n) ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
                 onClick={() => setNumPlayers(n)}>
                 {n} jogadores
               </button>
@@ -415,7 +450,17 @@ export default function SetupScreen({ onStart, onBack, session }) {
               💡 No Catraca, o valor de Front 9 e Back 9 é o valor de <strong>cada press</strong> — a primeira aposta da volta (antes de qualquer press) já entra valendo o <strong>dobro</strong> disso. Ex.: Front 9 = 5 → a volta em si vale 10, e cada press que nascer no meio dela vale 5. O Total 18 não tem press e vale exatamente o que você digitar.
             </div>
           )}
-          {(isNassauLike(format) || format === 'medal') ? (
+          {isSindicato ? (
+            <SindicatoBetConfig
+              numPlayers={numPlayers}
+              potValue={potValue}
+              setPotValue={setPotValue}
+              pct={sindPctNow}
+              pctSum={sindPctSum}
+              onPct={updSindPct}
+              onReset={() => setSindPct(prev => ({ ...prev, [numPlayers]: [...SINDICATO_DEFAULT_PCT[numPlayers]] }))}
+            />
+          ) : (isNassauLike(format) || format === 'medal') ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {[['frontVal','Front 9'],['backVal','Back 9'],['totalVal','Total 18']].map(([k,l]) => (
                 <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -526,6 +571,58 @@ export default function SetupScreen({ onStart, onBack, session }) {
           Iniciar Rodada →
         </button>
 
+      </div>
+    </div>
+  )
+}
+
+// Configuração de aposta do Sindicato: valor do pote + divisão por colocação.
+function SindicatoBetConfig({ numPlayers, potValue, setPotValue, pct, pctSum, onPct, onReset }) {
+  const ante = potValue / numPlayers
+  const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',')
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: 'rgba(201,168,76,0.06)', border: '0.5px solid var(--border-gold)', borderRadius: 8 }}>
+        💡 {numPlayers === 3 ? 'Six' : 'Twelves'}: cada buraco distribui <strong>{numPlayers === 3 ? '6 pontos (4-2-0)' : '12 pontos (6-4-2-0)'}</strong> pelo score líquido. Empates somam os pontos das posições e dividem igual. No fim, o pote é pago pela colocação final em pontos.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+        <div style={{ fontSize: 11, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>Pote total</div>
+        <input type="number" min="1"
+          style={{ width: 90, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+          value={potValue}
+          onChange={e => setPotValue(Number(e.target.value))}
+        />
+        <span style={{ color: 'var(--muted2)', fontSize: 13 }}>R$</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
+        Cada jogador entra com R$ {fmt(ante)} ({numPlayers} × R$ {fmt(ante)} = R$ {fmt(potValue)})
+      </div>
+
+      <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>
+        Divisão do pote por colocação (%)
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${numPlayers}, 1fr)`, gap: 8 }}>
+        {pct.map((v, pos) => (
+          <div key={pos} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted2)', fontWeight: 700 }}>{POSITION_LABELS[pos]}</div>
+            <input type="number" min="0" max="100"
+              style={{ width: '100%', maxWidth: 70, height: 40, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 16, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+              value={v}
+              onChange={e => onPct(pos, e.target.value)}
+            />
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>R$ {fmt(potValue * (Number(v) || 0) / 100)}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: pctSum === 100 ? 'var(--green2, #4caf50)' : 'var(--red, #e05555)' }}>
+          {pctSum === 100 ? '✓ Soma 100%' : `⚠️ Soma ${pctSum}% — precisa fechar 100%`}
+        </span>
+        <button type="button" onClick={onReset}
+          style={{ background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 11, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--sans)' }}>
+          Restaurar padrão
+        </button>
       </div>
     </div>
   )
