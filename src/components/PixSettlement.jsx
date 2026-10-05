@@ -20,11 +20,25 @@ export default function PixSettlement({ players, meIndex, description }) {
   const [myPix,     setMyPix]     = useState(null)     // { key, type, uid }
   const [partners,  setPartners]  = useState({})       // nome minúsculo -> { name, key, type }
   const [loadError, setLoadError] = useState('')
-  const [qrFor,     setQrFor]     = useState(null)     // transferência aberta no QR
+  const [qrIdx,     setQrIdx]     = useState(null)     // índice da transferência aberta no QR
   const [editing,   setEditing]   = useState(null)     // índice do jogador cadastrando chave
   const [copied,    setCopied]    = useState('')
+  // Valor ajustado à mão por transferência: número = valor novo, null = QR
+  // sem valor (quem paga digita no banco). Sem entrada = valor calculado.
+  const [overrides, setOverrides] = useState({})
+  const [editAmt,   setEditAmt]   = useState(null)     // índice da transferência em edição
 
-  const transfers = useMemo(() => settleUp(players.map(p => p.money)), [players])
+  const calculated = useMemo(() => settleUp(players.map(p => p.money)), [players])
+  // Se os saldos mudarem (ex.: correção de score), os ajustes manuais perdem o sentido
+  // (compara pelo conteúdo, não pela referência — o pai recria o array a cada render)
+  const calcSig = calculated.map(t => `${t.from}>${t.to}:${t.amount}`).join('|')
+  useEffect(() => { setOverrides({}); setEditAmt(null) }, [calcSig])
+  const transfers = useMemo(() => calculated.map((t, ti) => ({
+    ...t,
+    original: t.amount,
+    amount: ti in overrides ? overrides[ti] : t.amount,
+    edited: ti in overrides,
+  })), [calculated, overrides])
 
   useEffect(() => {
     let alive = true
@@ -104,7 +118,7 @@ export default function PixSettlement({ players, meIndex, description }) {
     if (description) lines.push(`_${description}_`)
     lines.push('')
     transfers.forEach(t => {
-      lines.push(`• *${players[t.from].name}* paga *${fmtReais(t.amount)}* a *${players[t.to].name}*`)
+      lines.push(`• *${players[t.from].name}* paga *${amountLabel(t)}* a *${players[t.to].name}*`)
       const code = payloadFor(t)
       if (code) lines.push(`  Pix Copia e Cola:\n${code}`)
       lines.push('')
@@ -114,12 +128,16 @@ export default function PixSettlement({ players, meIndex, description }) {
 
   const shareOne = (t) => {
     const code = payloadFor(t)
-    const text = `⛳ *Caddie Stakes*\n${players[t.from].name}, seu acerto da rodada: *${fmtReais(t.amount)}* para *${players[t.to].name}*.` +
+    const text = `⛳ *Caddie Stakes*\n${players[t.from].name}, seu acerto da rodada: *${amountLabel(t)}* para *${players[t.to].name}*.` +
       (code ? `\n\nPix Copia e Cola:\n${code}` : '')
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
+  // Sem valor no código: mostra o valor de referência pra quem vai digitar no banco
+  const amountLabel = (t) => t.amount == null ? `${fmtReais(t.original)} (digite o valor no banco)` : fmtReais(t.amount)
+
   if (transfers.length === 0) return null
+  const qrFor = qrIdx !== null ? transfers[qrIdx] : null
 
   return (
     <div className="card">
@@ -138,13 +156,35 @@ export default function PixSettlement({ players, meIndex, description }) {
                 <span style={{ color: 'var(--muted2)' }}> paga a </span>
                 <strong style={{ color: 'var(--green2, #5dba7a)' }}>{players[t.to].name}</strong>
               </div>
-              <div style={{ fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 700, color: 'var(--gold)', whiteSpace: 'nowrap' }}>
-                {fmtReais(t.amount)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontFamily: 'var(--serif)', fontSize: t.amount == null ? 14 : 18, fontWeight: 700, color: 'var(--gold)', whiteSpace: 'nowrap' }}>
+                    {t.amount == null ? 'Sem valor no QR' : fmtReais(t.amount)}
+                  </div>
+                  {t.edited && (
+                    <div style={{ fontSize: 10, color: 'var(--muted2)' }}>calculado: {fmtReais(t.original)}</div>
+                  )}
+                </div>
+                <button type="button" aria-label="Editar valor" onClick={() => setEditAmt(editAmt === ti ? null : ti)}
+                  style={{ width: 30, height: 30, borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+                    background: editAmt === ti ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.06)',
+                    border: '0.5px solid rgba(255,255,255,0.14)', color: 'var(--gold)', fontSize: 14 }}>
+                  ✎
+                </button>
               </div>
             </div>
+            {editAmt === ti && (
+              <AmountEditor
+                current={t.amount}
+                original={t.original}
+                onApply={v => { setOverrides(prev => ({ ...prev, [ti]: v })); setEditAmt(null) }}
+                onReset={() => { setOverrides(prev => { const n = { ...prev }; delete n[ti]; return n }); setEditAmt(null) }}
+                onCancel={() => setEditAmt(null)}
+              />
+            )}
             {pix ? (
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button type="button" style={smallBtn(true)} onClick={() => setQrFor(t)}>▦ QR</button>
+                <button type="button" style={smallBtn(true)} onClick={() => setQrIdx(ti)}>▦ QR</button>
                 <button type="button" style={smallBtn()} onClick={() => copy(payloadFor(t), `c${ti}`)}>
                   {copied === `c${ti}` ? '✓ Copiado' : '📋 Copia e Cola'}
                 </button>
@@ -188,11 +228,12 @@ export default function PixSettlement({ players, meIndex, description }) {
           receiver={players[qrFor.to].name}
           pix={pixOf(qrFor.to)}
           amount={qrFor.amount}
+          original={qrFor.original}
           payload={payloadFor(qrFor)}
           onCopy={() => copy(payloadFor(qrFor), 'modal')}
           copied={copied === 'modal'}
           onShare={() => shareOne(qrFor)}
-          onClose={() => setQrFor(null)}
+          onClose={() => setQrIdx(null)}
         />
       )}
     </div>
@@ -209,7 +250,7 @@ function smallBtn(primary) {
   }
 }
 
-function PixQrModal({ payer, receiver, pix, amount, payload, onCopy, copied, onShare, onClose }) {
+function PixQrModal({ payer, receiver, pix, amount, original, payload, onCopy, copied, onShare, onClose }) {
   const [img, setImg] = useState(null)
   useEffect(() => {
     if (!payload) return
@@ -229,8 +270,13 @@ function PixQrModal({ payer, receiver, pix, amount, payload, onCopy, copied, onS
         <div style={{ fontSize: 12, color: 'var(--muted2)' }}>{payer} paga a</div>
         <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--cream)', marginTop: 2 }}>{receiver}</div>
         <div style={{ fontFamily: 'var(--serif)', fontSize: 30, fontWeight: 700, color: 'var(--gold)', margin: '6px 0 12px' }}>
-          {fmtReais(amount)}
+          {amount == null ? 'Valor livre' : fmtReais(amount)}
         </div>
+        {amount == null && (
+          <div style={{ fontSize: 11, color: 'var(--muted2)', marginTop: -8, marginBottom: 12 }}>
+            Quem paga digita o valor no banco (acerto calculado: {fmtReais(original)})
+          </div>
+        )}
         <div style={{ background: '#fff', borderRadius: 12, padding: 10, display: 'inline-block' }}>
           {img ? <img src={img} alt="QR code PIX" style={{ width: 240, height: 240, display: 'block' }}/>
                : <div style={{ width: 240, height: 240 }}/>}
@@ -246,6 +292,47 @@ function PixQrModal({ payer, receiver, pix, amount, payload, onCopy, copied, onS
           style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--sans)' }}>
           Fechar
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Ajuste manual do valor de uma transferência: valor novo, QR sem valor
+// (quem paga digita no banco) ou voltar ao valor calculado.
+function AmountEditor({ current, original, onApply, onReset, onCancel }) {
+  const [raw, setRaw] = useState(current == null ? '' : current.toFixed(2).replace('.', ','))
+  const [error, setError] = useState('')
+
+  const apply = () => {
+    // Aceita "130", "130,5", "1.234,56" ou "130.50"
+    let t = raw.trim().replace(/\s|R\$/g, '')
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
+    const v = Math.round(Number(t) * 100) / 100
+    if (!t || !isFinite(v) || v <= 0) { setError('Digite um valor maior que zero.'); return }
+    if (v > 999999) { setError('Valor alto demais.'); return }
+    onApply(v)
+  }
+
+  return (
+    <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 8 }}>
+        Ajustar valor <span style={{ color: 'var(--muted2)', fontWeight: 400 }}>· calculado: {fmtReais(original)}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: 'var(--muted2)', fontSize: 14 }}>R$</span>
+        <input value={raw} inputMode="decimal" autoFocus
+          onChange={e => { setRaw(e.target.value); setError('') }}
+          onKeyDown={e => { if (e.key === 'Enter') apply() }}
+          placeholder="0,00"
+          style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)',
+            borderRadius: 8, color: 'var(--gold)', fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 700, padding: '7px 10px' }}/>
+        <button type="button" style={{ ...smallBtn(true), flex: '0 0 auto', padding: '9px 14px' }} onClick={apply}>OK</button>
+      </div>
+      {error && <div style={{ fontSize: 11, color: 'var(--red, #e05555)', marginTop: 6 }}>⚠️ {error}</div>}
+      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+        <button type="button" style={smallBtn()} onClick={() => onApply(null)}>QR sem valor</button>
+        <button type="button" style={smallBtn()} onClick={onReset}>Voltar ao calculado</button>
+        <button type="button" style={smallBtn()} onClick={onCancel}>Cancelar</button>
       </div>
     </div>
   )
