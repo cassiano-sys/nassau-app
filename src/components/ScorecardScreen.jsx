@@ -4,7 +4,7 @@ import {
   HOLES, FRONT, BACK,
   getStrokesGlobal,
   calcIndiv, calcTeam, calcMoney, segMoney,
-  calcSkins, calcStableford, calcMedal, cmp,
+  calcSkins, calcStableford, calcMedal, calcSindicato, cmp,
 } from '../lib/golf'
 import { resizeImageToBase64 } from '../lib/image'
 
@@ -159,6 +159,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
     format === 'medal' ? calcMedal(scores, players, si, betValues) : null
   , [scores, players, si, betValues, format])
 
+  // ── Sindicato (Six / Twelves) ──
+  const sindResult = useMemo(() =>
+    format === 'sindicato' && (players.length === 3 || players.length === 4)
+      ? calcSindicato(scores, players, si, betValues?.potValue || 0, betValues?.payoutPct)
+      : null
+  , [scores, players, si, betValues, format])
+
   // ── Money per player ──
   const playerMoney = useMemo(() => {
     const m = players.map(() => 0)
@@ -177,9 +184,12 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       stableResult.money.forEach((v, i) => { m[i] = v })
     } else if (format === 'medal' && medalResult) {
       medalResult.money.forEach((v, i) => { m[i] = v })
+    } else if (format === 'sindicato' && sindResult) {
+      // Pote ÷ 3 pode dar dízima — arredonda pra centavos.
+      sindResult.money.forEach((v, i) => { m[i] = Math.round(v * 100) / 100 })
     }
     return m
-  }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, format, isNassauLike, pairs, teamA, teamB, players])
+  }, [indivMoney, teamMoney, skinsResult, stableResult, medalResult, sindResult, format, isNassauLike, pairs, teamA, teamB, players])
 
   // ── Photo handling ──
   const handlePhotoSelect = async (e) => {
@@ -591,6 +601,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
           <LiveScores format={format} pairs={pairs} players={players} indivResults={indivResults}
             indivMoney={indivMoney} teamResult={teamResult} teamMoney={teamMoney}
             skinsResult={skinsResult} stableResult={stableResult} medalResult={medalResult}
+            sindResult={sindResult}
             tLA={tLA} tLB={tLB} betValues={betValues} betUnit={betUnit} scores={scores}/>
 
           {/* Atalho pra quem termina de lançar os scores e vai direto encerrar
@@ -625,6 +636,9 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
           {format === 'medal' && medalResult && (
             <MedalResults players={players} result={medalResult} betValues={betValues}/>
           )}
+          {format === 'sindicato' && sindResult && (
+            <SindicatoResults players={players} result={sindResult} betValues={betValues} par={par}/>
+          )}
 
           {/* Final money — números grandes */}
           <div className="card">
@@ -634,7 +648,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                 <div key={pi} className={`saldo-cell ${playerMoney[pi] > 0 ? 'win' : playerMoney[pi] < 0 ? 'lose' : 'tie'}`}>
                   <div className="saldo-name">{p.name}</div>
                   <div className={`saldo-val ${playerMoney[pi] > 0 ? 'pos' : playerMoney[pi] < 0 ? 'neg' : 'neu'}`}>
-                    {playerMoney[pi] > 0 ? '+' : ''}R${Math.abs(playerMoney[pi])}
+                    {playerMoney[pi] > 0 ? '+' : ''}R${fmtBRL(playerMoney[pi])}
                   </div>
                 </div>
               ))}
@@ -660,7 +674,27 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResult, teamMoney,
-  skinsResult, stableResult, medalResult, tLA, tLB, betValues, betUnit, scores }) {
+  skinsResult, stableResult, medalResult, sindResult, tLA, tLB, betValues, betUnit, scores }) {
+
+  if (format === 'sindicato' && sindResult) {
+    const holesPlayed = sindResult.holeResults.filter(Boolean).length
+    const order = players.map((p, pi) => ({ name: p.name, pts: sindResult.points[pi], pi }))
+      .sort((a, b) => b.pts - a.pts)
+    return (
+      <div className="card">
+        <h2>Sindicato · {players.length === 3 ? 'Six' : 'Twelves'}</h2>
+        {order.map((o, rank) => (
+          <div key={o.pi} className="seg-row">
+            <span>{rank + 1}º · {o.name}</span>
+            <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{fmtPts(o.pts)} pts</span>
+          </div>
+        ))}
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
+          {holesPlayed}/18 buracos pontuados — o buraco só conta quando todos têm score lançado.
+        </div>
+      </div>
+    )
+  }
 
   if (format === 'medal' && medalResult) return (
     <div className="card">
@@ -1280,6 +1314,88 @@ function MedalResults({ players, result, betValues }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// Pontos do Sindicato podem ser fracionados quando há empate (ex.: 3 jogadores
+// empatados em 1º num Six dividem 6 → 2 cada; 2 empatados em 2º num Twelves
+// dividem 4+2 → 3 cada) — mostra até 1 casa decimal, sem ",0" à toa.
+function fmtPts(v) {
+  return Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ',')
+}
+
+function fmtBRL(v) {
+  const abs = Math.abs(v)
+  return Number.isInteger(abs) ? String(abs) : abs.toFixed(2).replace('.', ',')
+}
+
+function SindicatoResults({ players, result, betValues, par }) {
+  const pot = betValues?.potValue || 0
+  const order = players.map((p, pi) => ({ name: p.name, pi, pts: result.points[pi] }))
+    .sort((a, b) => b.pts - a.pts)
+  const medal = r => r === 0 ? '🏆' : r === 1 ? '🥈' : r === 2 ? '🥉' : `${r + 1}º`
+  return (
+    <div className="card">
+      <h2>Resultado Sindicato · {players.length === 3 ? 'Six' : 'Twelves'}</h2>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+        Pote R$ {fmtBRL(pot)} · cada um entrou com R$ {fmtBRL(result.ante)}
+      </div>
+      {order.map((o, rank) => {
+        const share = result.pctShare[o.pi]
+        const net = Math.round(result.money[o.pi] * 100) / 100
+        return (
+          <div key={o.pi} className="seg-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>{medal(rank)}</span>
+              <div>
+                <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{o.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  {fmtPts(o.pts)} pts · leva {fmtPts(share)}% (R$ {fmtBRL(pot * share / 100)})
+                </div>
+              </div>
+            </div>
+            <span className={net > 0 ? 'pos' : net < 0 ? 'neg' : 'neu'} style={{ fontWeight: 700, fontSize: 15 }}>
+              {net > 0 ? '+' : net < 0 ? '−' : ''}R$ {fmtBRL(net)}
+            </span>
+          </div>
+        )
+      })}
+
+      {/* Pontos buraco a buraco */}
+      <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px', margin: '14px 0 6px' }}>
+        Pontos por buraco
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 11, width: '100%', minWidth: 520 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', color: 'var(--muted2)', fontWeight: 600, padding: '3px 4px' }}></th>
+              {result.holeResults.map((_, i) => (
+                <th key={i} style={{ color: 'var(--muted2)', fontWeight: 600, padding: '3px 2px' }}>{i + 1}</th>
+              ))}
+              <th style={{ color: 'var(--gold)', fontWeight: 700, padding: '3px 4px' }}>Tot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p, pi) => (
+              <tr key={pi} style={{ borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
+                <td style={{ color: 'var(--cream)', padding: '4px 4px', whiteSpace: 'nowrap' }}>{p.name}</td>
+                {result.holeResults.map((h, i) => {
+                  const v = h ? h[pi] : null
+                  const top = h && v === Math.max(...h)
+                  return (
+                    <td key={i} style={{ textAlign: 'center', padding: '4px 2px', color: v === null ? 'var(--muted)' : top ? 'var(--gold)' : 'var(--cream)', fontWeight: top ? 700 : 400 }}>
+                      {v === null ? '·' : fmtPts(v)}
+                    </td>
+                  )
+                })}
+                <td style={{ textAlign: 'center', color: 'var(--gold)', fontWeight: 700, padding: '4px 4px' }}>{fmtPts(result.points[pi])}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
