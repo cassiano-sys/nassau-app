@@ -273,3 +273,84 @@ export function calcStableford(grossAll, players, si, par, betPerPoint) {
  
   return { points, winners, money }
 }
+ 
+// ── Sindicato (Six / Twelves) ─────────────────────────────────────────────────
+// Individual, no-team, points-per-hole format for rounds of exactly 3 or 4
+// players. Each hole pays out a fixed pool of points split by net-score
+// rank: 3 players share 6 points (4-2-0) — "Six" — and 4 players share 12
+// points (6-4-2-0) — "Twelves". A hole is only scored once every player in
+// the round has a recorded gross score for it (comparative ranking needs
+// everyone's net). Ties — both on a single hole and in the final overall
+// standings — sum the value of the tied positions and split it evenly
+// among the tied players, never invent or drop points.
+//
+// Money is a pot, not a per-point bet: every player antes an equal share
+// of a pot value the group sets, and the pot is paid back out by finishing
+// position using a user-editable percentage split (defaults below). This
+// is zero-sum by construction — the percentages sum to 100, so total
+// payout always equals the total pot, no zeroSum() helper needed.
+export const SIX_HOLE_POINTS     = [4, 2, 0]      // 3 players
+export const TWELVES_HOLE_POINTS = [6, 4, 2, 0]   // 4 players
+ 
+export const SINDICATO_DEFAULT_PCT = {
+  3: [70, 30, 0],
+  4: [60, 30, 10, 0],
+}
+ 
+// Ranks players by `scores` ascending (lowest = best) and hands out
+// `values` in that order. Tied scores share the summed value of the
+// positions they occupy, split evenly — used for both per-hole points
+// (scores = net strokes) and final payout (scores = -totalPoints).
+export function rankSplit(scores, values) {
+  const order = scores
+    .map((score, pi) => ({ pi, score }))
+    .sort((a, b) => a.score - b.score)
+ 
+  const result = new Array(scores.length).fill(0)
+  let i = 0
+  while (i < order.length) {
+    let j = i
+    while (j + 1 < order.length && order[j + 1].score === order[i].score) j++
+    const share = values.slice(i, j + 1).reduce((a, b) => a + b, 0) / (j - i + 1)
+    for (let k = i; k <= j; k++) result[order[k].pi] = share
+    i = j + 1
+  }
+  return result
+}
+ 
+export function calcSindicato(grossAll, players, si, potValue, payoutPct) {
+  const n = players.length
+  if (n !== 3 && n !== 4) {
+    throw new Error('Sindicato requires a round of exactly 3 or 4 players')
+  }
+  const holePoints = n === 3 ? SIX_HOLE_POINTS : TWELVES_HOLE_POINTS
+  const pct = payoutPct || SINDICATO_DEFAULT_PCT[n]
+  const lowestHcp = Math.min(...players.map(p => p.handicap))
+ 
+  const netAll = players.map((p, pi) =>
+    HOLES.map((_, i) => {
+      const g = grossAll[pi][i]
+      if (g === null) return null
+      return g - getStrokesGlobal(p.handicap, lowestHcp, si, i)
+    })
+  )
+ 
+  const points = players.map(() => 0)
+  const holeResults = HOLES.map((_, i) => {
+    const nets = netAll.map(net => net[i])
+    if (nets.some(net => net === null)) return null
+    const split = rankSplit(nets, holePoints)
+    split.forEach((pts, pi) => { points[pi] += pts })
+    return split
+  })
+ 
+  // Final standings rank by total points descending (most points = best),
+  // so negate for rankSplit, which ranks ascending.
+  const pctShare = rankSplit(points.map(p => -p), pct)
+ 
+  const ante = potValue / n
+  const money = pctShare.map(share => (potValue * share) / 100 - ante)
+ 
+  return { points, holeResults, pctShare, ante, money }
+}
+ 
