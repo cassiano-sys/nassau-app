@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { resizeImageToBase64 } from '../lib/image'
+import PixSettlement, { PixKeyForm } from './PixSettlement'
+import { displayPixKey, PIX_TYPES } from '../lib/pix'
 
 function firstNameLower(fullName) {
   if (!fullName) return ''
@@ -263,6 +265,7 @@ export function HistoryScreen({ onBack, session }) {
   const [rounds,  setRounds]  = useState([])
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState('all')
+  const [pixOpen, setPixOpen] = useState(null) // id da rodada com o acerto PIX aberto
 
   const firstName = firstNameLower(session?.user?.user_metadata?.full_name || '')
 
@@ -375,6 +378,23 @@ export function HistoryScreen({ onBack, session }) {
                   </div>
                 ))}
             </div>
+            {r.round_players?.some(p => Math.abs(p.money_result || 0) >= 0.01) && (
+              <button type="button" onClick={() => setPixOpen(pixOpen === r.id ? null : r.id)}
+                style={{ marginTop: 10, width: '100%', padding: '8px', borderRadius: 8, cursor: 'pointer',
+                  background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)',
+                  color: 'var(--gold)', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+                {pixOpen === r.id ? 'Fechar acerto' : '💸 Acerto via PIX'}
+              </button>
+            )}
+            {pixOpen === r.id && (
+              <div style={{ marginTop: 10 }}>
+                <PixSettlement
+                  players={(r.round_players || []).map(p => ({ name: p.player_name, handicap: p.handicap, money: p.money_result || 0 }))}
+                  meIndex={(r.round_players || []).findIndex(p => isMe(p.player_name))}
+                  description={`Golfe ${r.course_name || ''} ${new Date(r.played_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -387,6 +407,9 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
   const [hcp,    setHcp]    = useState(session?.user?.user_metadata?.handicap  || 0)
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
+  const [pixKey,  setPixKey]  = useState(session?.user?.user_metadata?.pix_key  || '')
+  const [pixType, setPixType] = useState(session?.user?.user_metadata?.pix_type || 'phone')
+  const [pixEdit, setPixEdit] = useState(false)
 
   // ── Calibração de caligrafia (amostra dos números 0-9) ──
   const [hwSample,  setHwSample]  = useState(null)   // amostra já salva (base64)
@@ -483,6 +506,39 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
             </button>
           )}
         </div>
+        <div className="card">
+          <h2>Minha chave PIX</h2>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
+            No fim da rodada, quem perdeu pra você recebe um QR code / Pix Copia e Cola já com o valor certo. O app não movimenta dinheiro — só monta o código.
+          </p>
+          {pixKey && !pixEdit ? (
+            <>
+              <div style={{ fontSize: 14, color: 'var(--cream)', marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted2)' }}>{PIX_TYPES.find(t => t.id === pixType)?.label}: </span>
+                <strong>{displayPixKey(pixType, pixKey)}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn-secondary" style={{ marginBottom: 0 }} onClick={() => setPixEdit(true)}>Trocar chave</button>
+                <button className="btn-danger" style={{ width: '100%', padding: 12 }} onClick={async () => {
+                  await supabase.auth.updateUser({ data: { pix_key: null, pix_type: null } })
+                  setPixKey('')
+                }}>Remover</button>
+              </div>
+            </>
+          ) : (
+            <PixKeyForm
+              initialType={pixType}
+              onCancel={pixKey ? () => setPixEdit(false) : undefined}
+              onSave={async (type, key) => {
+                const { error } = await supabase.auth.updateUser({ data: { pix_key: key, pix_type: type } })
+                if (error) return error.message
+                setPixKey(key); setPixType(type); setPixEdit(false)
+                return null
+              }}
+            />
+          )}
+        </div>
+
         <div className="card" style={{ borderColor: 'rgba(68,136,204,0.25)' }}>
           <h2>Calibração de leitura (IA)</h2>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.7 }}>
@@ -536,8 +592,9 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
           <h2>Caddie Stakes Golf</h2>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.8 }}>
             <div>Versão 1.0</div>
-            <div>Nassau · Skins · Stableford</div>
-            <div>Press automático · Foto do cartão</div>
+            <div>Nassau · Match Play · Catraca · Medal</div>
+            <div>Skins · Stableford · Sindicato</div>
+            <div>Press automático · Foto do cartão · Acerto via PIX</div>
             <div>Histórico na nuvem · Ranking</div>
           </div>
         </div>
