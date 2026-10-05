@@ -41,6 +41,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [playsIndividual, setPlaysIndividual] = useState([true, true, true, true])
   const [betValues,  setBetValues]  = useState({ frontVal: 20, backVal: 20, totalVal: 40 })
   const [betUnit,    setBetUnit]    = useState(20)
+  // Medal adicional: aposta extra de stroke play (Front/Back/Total, valores
+  // próprios) que roda em paralelo ao formato principal — ex.: a quadra joga
+  // Nassau e ainda quer um Medal valendo outro valor.
+  const [medalSideOn,   setMedalSideOn]   = useState(false)
+  const [medalSideVals, setMedalSideVals] = useState({ frontVal: 10, backVal: 10, totalVal: 20 })
   // Sindicato: pote total (cada um entra com pote ÷ nº de jogadores) e a
   // divisão do pote por colocação, em %, separada para 3 e 4 jogadores.
   const [potValue,   setPotValue]   = useState(120)
@@ -190,6 +195,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
         : (isNassauLike(format) || format === 'medal') ? betValues : { frontVal: betUnit, backVal: betUnit, totalVal: betUnit },
       betUnit,
       numPlayers,
+      // null quando desligado (ou quando o formato principal já é Medal)
+      medalSide: medalSideOn && format !== 'medal' ? medalSideVals : null,
     })
   }
 
@@ -487,6 +494,47 @@ export default function SetupScreen({ onStart, onBack, session }) {
             </div>
           )}
         </div>
+
+        {/* Medal adicional — aposta extra em paralelo ao formato principal */}
+        {format !== 'medal' && (
+          <div className="card">
+            <h2>Aposta extra</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+              onClick={() => setMedalSideOn(v => !v)}>
+              <div style={{
+                width: 44, height: 24, borderRadius: 12, padding: 2,
+                background: medalSideOn ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                transition: 'background .2s', flexShrink: 0,
+              }}>
+                <div style={{
+                  width: 20, height: 20, background: '#fff', borderRadius: '50%',
+                  transform: medalSideOn ? 'translateX(20px)' : 'translateX(0)',
+                  transition: 'transform .2s',
+                }}/>
+              </div>
+              <span style={{ fontSize: 13, color: 'var(--cream)' }}>
+                🎖️ Somar um Medal ({medalSideOn ? 'sim' : 'não'})
+              </span>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5, marginTop: 8, marginBottom: medalSideOn ? 12 : 0 }}>
+              Além do {FORMATS.find(f => f.id === format)?.label}, a rodada também vale um Medal (stroke play líquido, todos contra todos): menor total em cada trecho leva o valor dele. Valores independentes da aposta principal — use 0 pra deixar um trecho de fora.
+            </p>
+            {medalSideOn && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {[['frontVal','Front 9'],['backVal','Back 9'],['totalVal','Total 18']].map(([k,l]) => (
+                  <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>{l}</div>
+                    <input type="number" min="0"
+                      style={{ width: 70, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+                      value={medalSideVals[k]}
+                      onChange={e => setMedalSideVals(prev => ({ ...prev, [k]: Math.max(0, Number(e.target.value)) }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Campo */}
         <div className="card">
