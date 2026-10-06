@@ -8,12 +8,14 @@ import ScorecardScreen     from './components/ScorecardScreen'
 import PresentationScreen  from './components/PresentationScreen'
 import { HistoryScreen, RankingScreen, ProfileScreen } from './components/HistoryScreen'
 import BugReportButton     from './components/BugReportButton'
+import { loadDraft }       from './lib/draft'
 
 export default function App() {
   const [session,    setSession]    = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [screen,     setScreen]     = useState('home')
   const [gameConfig, setGameConfig] = useState(null)
+  const [resumeDraft, setResumeDraft] = useState(null) // rodada em andamento sendo retomada
   // Quando o usuário clica no link de "recuperar senha" do email, o Supabase
   // abre uma sessão temporária e dispara o evento PASSWORD_RECOVERY (em vez
   // de um login normal). Sem tratar isso à parte, a pessoa cairia direto na
@@ -39,13 +41,19 @@ export default function App() {
   const nav = (s) => setScreen(s)
 
   let content
-  if (screen === 'setup')        content = <SetupScreen        onStart={cfg => { setGameConfig(cfg); nav('scorecard') }} onBack={() => nav('home')} session={session}/>
-  else if (screen === 'scorecard')    content = <ScorecardScreen    config={gameConfig} onFinish={s => nav(s || 'home')} onBack={() => nav('home')} session={session}/>
+  const resume = () => {
+    const d = loadDraft(session.user.id)
+    if (!d) return
+    setGameConfig(d.config); setResumeDraft(d); nav('scorecard')
+  }
+
+  if (screen === 'setup')        content = <SetupScreen        onStart={cfg => { setResumeDraft(null); setGameConfig({ ...cfg, startedAt: new Date().toISOString() }); nav('scorecard') }} onBack={() => nav('home')} session={session}/>
+  else if (screen === 'scorecard')    content = <ScorecardScreen    key={resumeDraft?.savedAt || gameConfig?.startedAt} config={gameConfig} initialDraft={resumeDraft} onFinish={s => { setResumeDraft(null); nav(s || 'home') }} onBack={() => { setResumeDraft(null); nav('home') }} session={session}/>
   else if (screen === 'presentation') content = <PresentationScreen onBack={() => nav('home')}/>
   else if (screen === 'history')      content = <HistoryScreen      onBack={() => nav('home')} session={session}/>
   else if (screen === 'ranking')      content = <RankingScreen      onBack={() => nav('home')} session={session}/>
   else if (screen === 'profile')      content = <ProfileScreen      onBack={() => nav('home')} session={session} onSignOut={() => { setSession(null); nav('home') }}/>
-  else                                 content = <HomeScreen nav={nav} session={session}/>
+  else                                 content = <HomeScreen nav={nav} session={session} onResume={resume}/>
 
   // Botão flutuante de "relatar problema" — aparece em toda tela logada,
   // menos na Apresentação (tela em tela cheia, sem distrações, no fim da
