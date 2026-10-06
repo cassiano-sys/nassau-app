@@ -312,6 +312,9 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
         played_at:   new Date().toISOString(),
         bet_values:  medalSideResult ? { ...betValues, medalSide } : betValues,
         num_players: numPlayers,
+        // Rodada da versão com amigos: quem vê é decidido pelo vínculo das
+        // contas (player_user_id), não mais pelo primeiro nome.
+        linked_rules: true,
       })
       if (rErr) throw rErr
 
@@ -323,6 +326,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
         gross_scores:  scores[pi],
         money_result:  playerMoney[pi],
         team:          teamA.includes(pi) ? 'A' : 'B',
+        player_user_id: p.userId || null, // conta do jogador (você ou amigo ✓)
       }))
       // Sem checar o erro aqui, um insert que falhasse (RLS, coluna faltando,
       // valor inválido, etc.) passava batido: o código seguia como se tivesse

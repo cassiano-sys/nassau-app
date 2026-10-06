@@ -7,7 +7,7 @@ function firstNameLower(fullName) {
   return fullName.trim().split(' ')[0].toLowerCase()
 }
 
-export default function HomeScreen({ nav, session, onResume }) {
+export default function HomeScreen({ nav, session, onResume, notice, onDismissNotice }) {
   const [draft,   setDraft]   = useState(() => loadDraft(session?.user?.id))
   const [confirmNew, setConfirmNew] = useState(false)
   const [stats,   setStats]   = useState(null)
@@ -16,7 +16,8 @@ export default function HomeScreen({ nav, session, onResume }) {
 
   const fullName  = session?.user?.user_metadata?.full_name || ''
   const firstName = firstNameLower(fullName)
-  const displayName = fullName.split(' ')[0] || 'Jogador'
+  const displayName = session?.user?.user_metadata?.nickname || fullName.split(' ')[0] || 'Jogador'
+  const nick = (session?.user?.user_metadata?.nickname || '').trim().toLowerCase()
 
   useEffect(() => { loadData() }, [])
 
@@ -32,7 +33,10 @@ export default function HomeScreen({ nav, session, onResume }) {
       let total = 0, jogos = 0, wins = 0
       const recent = []
       data.forEach(r => {
-        const mine = r.round_players?.find(p => firstNameLower(p.player_name) === firstName)
+        // "Eu" na rodada: pelo vínculo da conta; nas rodadas antigas (sem
+        // vínculo), pelo primeiro nome / apelido, como antes.
+        const mine = r.round_players?.find(p => p.player_user_id === session?.user?.id)
+          || r.round_players?.find(p => !p.player_user_id && (firstNameLower(p.player_name) === firstName || (nick && p.player_name?.trim().toLowerCase() === nick)))
         if (mine) { total += mine.money_result || 0; jogos++; if (mine.money_result > 0) wins++ }
         if (recent.length < 3) recent.push(r)
       })
@@ -83,6 +87,14 @@ export default function HomeScreen({ nav, session, onResume }) {
               </div>
               <div className="perf-lbl">Taxa vitória</div>
             </div>
+          </div>
+        )}
+
+        {notice && (
+          <div className="card" style={{ borderColor: 'var(--green2, #5dba7a)', marginBottom: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, fontSize: 13, color: 'var(--cream)', lineHeight: 1.5 }}>{notice}</div>
+            <button type="button" onClick={onDismissNotice} aria-label="Fechar aviso"
+              style={{ background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 16, cursor: 'pointer' }}>✕</button>
           </div>
         )}
 

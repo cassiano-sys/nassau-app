@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { pendingInvite, inviteInfo } from '../lib/friends'
 import { supabase } from '../lib/supabase'
 
 // Versão dos Termos de Uso / Política de Privacidade vigente no momento do
@@ -24,7 +25,10 @@ function traduzErro(msg = '') {
 }
 
 export default function AuthScreen({ onAuth }) {
-  const [mode, setMode]       = useState('login') // login | signup | forgot
+  // Chegou por link de convite → abre direto em "Criar conta"
+  const [invitedBy, setInvitedBy] = useState(null)
+  const [mode, setMode]       = useState(() => pendingInvite() ? 'signup' : 'login') // login | signup | forgot
+  const [nickname, setNickname] = useState('')
   const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [name, setName]       = useState('')
@@ -35,6 +39,11 @@ export default function AuthScreen({ onAuth }) {
 
   const err = (msg) => { setError(traduzErro(msg)); setLoading(false) }
 
+  useEffect(() => {
+    const code = pendingInvite()
+    if (code) inviteInfo(code).then(n => setInvitedBy(n || 'um amigo')).catch(() => {})
+  }, [])
+
   const handleEmail = async () => {
     setLoading(true); setError('')
     if (mode === 'signup') {
@@ -42,6 +51,7 @@ export default function AuthScreen({ onAuth }) {
         email, password,
         options: { data: {
           full_name: name,
+          nickname: (nickname.trim() || name.trim().split(' ')[0] || ''),
           terms_version: TERMS_VERSION,
           terms_accepted_at: new Date().toISOString(),
         } }
@@ -138,10 +148,22 @@ export default function AuthScreen({ onAuth }) {
       <h1 className="auth-title">Caddie<span>Stakes</span></h1>
       <p className="auth-sub">Golfe com Nassau & Press</p>
 
+      {invitedBy && (
+        <div style={{ width: '100%', background: 'rgba(201,168,76,0.1)', border: '0.5px solid var(--gold)', borderRadius: 10, padding: '10px 12px', marginBottom: 14, fontSize: 13, color: 'var(--cream)', lineHeight: 1.5, textAlign: 'center' }}>
+          🤝 <strong>{invitedBy}</strong> te convidou. {mode === 'signup' ? 'Crie sua conta' : 'Entre na sua conta'} e vocês ficam conectados.
+        </div>
+      )}
+
       {mode === 'signup' && (
         <div style={{ marginBottom: 10 }}>
           <div className="field-label">Nome completo</div>
           <input className="text-input" placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 0 }}/>
+        </div>
+      )}
+      {mode === 'signup' && (
+        <div style={{ marginBottom: 10 }}>
+          <div className="field-label">Como você aparece no cartão</div>
+          <input className="text-input" placeholder="Apelido ou nome + sobrenome (ex.: Paulo S.)" value={nickname} onChange={e => setNickname(e.target.value)} style={{ marginBottom: 0 }}/>
         </div>
       )}
 
@@ -169,7 +191,7 @@ export default function AuthScreen({ onAuth }) {
       )}
 
       <button className="btn-primary" onClick={handleEmail} disabled={loading || !email || !password}>
-        {loading ? '...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+        {loading ? '...' : mode === 'login' ? (invitedBy ? 'Entrar e aceitar convite' : 'Entrar') : (invitedBy ? 'Criar conta e aceitar' : 'Criar conta')}
       </button>
 
       {error && <p className="auth-error">{error}</p>}

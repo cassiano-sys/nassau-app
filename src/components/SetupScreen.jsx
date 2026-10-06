@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { COURSES, SINDICATO_DEFAULT_PCT } from '../lib/golf'
 import { supabase } from '../lib/supabase'
+import { listFriends, myNickname } from '../lib/friends'
 
 const FORMATS = [
   { id: 'nassau',     label: 'Nassau',     icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
@@ -54,6 +55,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
     4: [...SINDICATO_DEFAULT_PCT[4]],
   })
   const [savedPlayers, setSavedPlayers] = useState([]) // jogadores parceiros cadastrados
+  const [friends,      setFriends]      = useState([]) // amigos conectados (contas vinculáveis)
   const [savedCourses, setSavedCourses] = useState([]) // campos customizados cadastrados
   const [newCourseName, setNewCourseName] = useState('')
   const [savingCourse,  setSavingCourse]  = useState(false)
@@ -66,11 +68,17 @@ export default function SetupScreen({ onStart, onBack, session }) {
     if (meta) {
       setPlayers(prev => prev.map((p, i) =>
         i === 0
-          ? { name: meta.full_name?.split(' ')[0] || '', handicap: meta.handicap || 0 }
+          ? { name: myNickname(session.user), handicap: meta.handicap || 0, userId: session.user.id }
           : p
       ))
     }
   }, [session])
+
+  // Amigos conectados — aparecem com ✓ nas sugestões e ficam vinculados à rodada
+  useEffect(() => {
+    if (!session?.user?.id) return
+    listFriends(session.user.id).then(setFriends).catch(() => setFriends([]))
+  }, [session?.user?.id])
 
   // Carrega os jogadores parceiros já cadastrados, para sugerir nos campos de nome
   useEffect(() => {
@@ -98,6 +106,23 @@ export default function SetupScreen({ onStart, onBack, session }) {
     setPlayers(prev => prev.map((p, pi) =>
       pi === i ? { ...p, [f]: f === 'handicap' ? Number(v) : v } : p
     ))
+
+  // Sugestões de nome: amigos conectados (✓) primeiro, depois parceiros salvos
+  // que não são amigos. O handicap do amigo vem do último uso salvo, se houver.
+  const savedByName = Object.fromEntries(savedPlayers.map(s => [s.name.trim().toLowerCase(), s]))
+  const friendNames = new Set(friends.map(f => f.nickname.trim().toLowerCase()))
+  const suggestions = [
+    ...friends.map(f => ({ name: f.nickname, userId: f.id, friend: true, handicap: savedByName[f.nickname.trim().toLowerCase()]?.handicap ?? null })),
+    ...savedPlayers.filter(s => !friendNames.has(s.name.trim().toLowerCase())),
+  ]
+  // Digitar à mão desfaz o vínculo (só o Jogador 1, que é você, continua vinculado)
+  const typeName = (i, v) =>
+    setPlayers(prev => prev.map((p, pi) => pi === i ? { ...p, name: v, userId: i === 0 ? p.userId : null } : p))
+  const pickName = (i, s) =>
+    setPlayers(prev => prev.map((p, pi) => pi === i ? {
+      ...p, name: s.name, userId: i === 0 ? p.userId : (s.userId || null),
+      handicap: s.handicap !== null && s.handicap !== undefined ? Number(s.handicap) : p.handicap,
+    } : p))
 
   const toggleIndividual = (pi) =>
     setPlaysIndividual(prev => prev.map((v, i) => i === pi ? !v : v))
@@ -318,12 +343,10 @@ export default function SetupScreen({ onStart, onBack, session }) {
                     style={{ ...inputStyle, flex: 1, minWidth: 0 }}
                     placeholder={`Jogador ${i + 1}`}
                     value={players[i].name}
-                    suggestions={savedPlayers}
-                    onChange={v => updPlayer(i, 'name', v)}
-                    onPick={s => {
-                      updPlayer(i, 'name', s.name)
-                      if (s.handicap !== null && s.handicap !== undefined) updPlayer(i, 'handicap', s.handicap)
-                    }}
+                    suggestions={i === 0 ? [] : suggestions}
+                    linked={!!players[i].userId}
+                    onChange={v => typeName(i, v)}
+                    onPick={s => pickName(i, s)}
                   />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <span style={{ fontSize: 11, color: 'var(--muted2)', letterSpacing: '1px', marginRight: 2 }}>HCP</span>
@@ -699,7 +722,7 @@ function SindicatoBetConfig({ numPlayers, potValue, setPotValue, pct, pctSum, on
 // Campo de nome de jogador com sugestões dos parceiros já cadastrados
 // (tabela saved_players). Autocomplete próprio em vez de <datalist> porque
 // o Safari no iPhone não exibe as sugestões do datalist de forma confiável.
-function PlayerNameField({ style, placeholder, value, suggestions, onChange, onPick }) {
+function PlayerNameField({ style, placeholder, value, suggestions, onChange, onPick, linked }) {
   const [open, setOpen] = useState(false)
 
   const q = value.trim().toLowerCase()
@@ -718,6 +741,9 @@ function PlayerNameField({ style, placeholder, value, suggestions, onChange, onP
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
+      {linked && (
+        <span title="Conta vinculada" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--green2, #5dba7a)', fontWeight: 700, fontSize: 14, pointerEvents: 'none' }}>✓</span>
+      )}
       {open && filtered.length > 0 && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
@@ -726,14 +752,14 @@ function PlayerNameField({ style, placeholder, value, suggestions, onChange, onP
           boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
         }}>
           {filtered.map(s => (
-            <div key={s.name}
+            <div key={(s.userId || '') + s.name}
               onMouseDown={() => { onPick(s); setOpen(false) }}
               style={{
                 padding: '9px 12px', fontSize: 13, color: 'var(--cream)', cursor: 'pointer',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
-              <span>{s.name}</span>
-              <span style={{ fontSize: 10, color: 'var(--muted2)' }}>HCP {s.handicap ?? 0}</span>
+              <span>{s.name}{s.friend && <span style={{ color: 'var(--green2, #5dba7a)', fontWeight: 700 }}> ✓ amigo</span>}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted2)' }}>{s.handicap !== null && s.handicap !== undefined ? `HCP ${s.handicap}` : ''}</span>
             </div>
           ))}
         </div>

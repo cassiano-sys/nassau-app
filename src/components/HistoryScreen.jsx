@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { resizeImageToBase64 } from '../lib/image'
 import PixSettlement, { PixKeyForm } from './PixSettlement'
 import { displayPixKey, PIX_TYPES } from '../lib/pix'
+import { listFriends, createInviteLink, claimRounds, removeFriend, syncProfile } from '../lib/friends'
 
 function firstNameLower(fullName) {
   if (!fullName) return ''
@@ -290,12 +291,17 @@ export function HistoryScreen({ onBack, session }) {
     setLoading(false)
   }
 
-  const isMe = (name) => firstName.length > 0 && firstNameLower(name) === firstName
+  const myId = session?.user?.id
+  const myNick = (session?.user?.user_metadata?.nickname || '').trim().toLowerCase()
+  // "Eu" na rodada: pela conta vinculada; nas rodadas antigas sem vínculo,
+  // pelo primeiro nome ou apelido (como antes).
+  const isMe = (p) => p.player_user_id ? p.player_user_id === myId
+    : (firstName.length > 0 && firstNameLower(p.player_name) === firstName) || (!!myNick && (p.player_name || '').trim().toLowerCase() === myNick)
 
   const myStats = useMemo(() => {
     let total = 0, wins = 0, jogos = 0
     rounds.forEach(r => {
-      const mine = r.round_players?.find(p => isMe(p.player_name))
+      const mine = r.round_players?.find(p => isMe(p))
       if (mine) {
         total += mine.money_result || 0
         jogos++
@@ -366,8 +372,8 @@ export function HistoryScreen({ onBack, session }) {
                 .map((p,i) => (
                   <div key={i} className="hist-player">
                     <span className="hist-pname" style={{
-                      fontWeight: isMe(p.player_name) ? 700 : 400,
-                      color: isMe(p.player_name) ? 'var(--gold)' : 'rgba(255,255,255,0.7)'
+                      fontWeight: isMe(p) ? 700 : 400,
+                      color: isMe(p) ? 'var(--gold)' : 'rgba(255,255,255,0.7)'
                     }}>
                       {p.player_name}
                       <small style={{ color:'var(--muted)', fontWeight:400 }}> HCP{p.handicap}</small>
@@ -390,7 +396,7 @@ export function HistoryScreen({ onBack, session }) {
               <div style={{ marginTop: 10 }}>
                 <PixSettlement
                   players={(r.round_players || []).map(p => ({ name: p.player_name, handicap: p.handicap, money: p.money_result || 0 }))}
-                  meIndex={(r.round_players || []).findIndex(p => isMe(p.player_name))}
+                  meIndex={(r.round_players || []).findIndex(p => isMe(p))}
                   description={`Golfe ${r.course_name || ''} ${new Date(r.played_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`}
                 />
               </div>
@@ -405,6 +411,7 @@ export function HistoryScreen({ onBack, session }) {
 export function ProfileScreen({ onBack, session, onSignOut }) {
   const [name,   setName]   = useState(session?.user?.user_metadata?.full_name || '')
   const [hcp,    setHcp]    = useState(session?.user?.user_metadata?.handicap  || 0)
+  const [nickname, setNickname] = useState(session?.user?.user_metadata?.nickname || (session?.user?.user_metadata?.full_name || '').split(' ')[0] || '')
   const [saving, setSaving] = useState(false)
   const [saved,  setSaved]  = useState(false)
   const [pixKey,  setPixKey]  = useState(session?.user?.user_metadata?.pix_key  || '')
@@ -460,7 +467,8 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
 
   const handleSave = async () => {
     setSaving(true)
-    await supabase.auth.updateUser({ data: { full_name: name, handicap: hcp } })
+    const { data } = await supabase.auth.updateUser({ data: { full_name: name, handicap: hcp, nickname: nickname.trim() } })
+    if (data?.user) syncProfile(data.user) // amigos passam a ver o apelido novo
     setSaved(true); setSaving(false)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -494,6 +502,14 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
               onChange={e => setName(e.target.value)} placeholder="Seu nome completo"/>
           </div>
           <div style={{ marginBottom:14 }}>
+            <div className="field-label">Como você aparece no cartão</div>
+            <input className="text-input" value={nickname}
+              onChange={e => setNickname(e.target.value)} placeholder="Apelido ou nome + sobrenome"/>
+            <div style={{ fontSize:11, color:'var(--muted2)', marginTop:4, lineHeight:1.5 }}>
+              É assim que seus amigos te acham e que seu nome vai no cartão (ex.: "Paulinho" ou "Paulo S.").
+            </div>
+          </div>
+          <div style={{ marginBottom:14 }}>
             <div className="field-label">Handicap de jogo</div>
             <input type="number" min="-10" max="54" className="text-input"
               value={hcp} onChange={e => setHcp(Number(e.target.value))} style={{ width:100 }}/>
@@ -506,6 +522,8 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
             </button>
           )}
         </div>
+        <FriendsCard session={session}/>
+
         <div className="card">
           <h2>Minha chave PIX</h2>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.6 }}>
@@ -599,6 +617,107 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Meus amigos: convite por link, lista, vincular rodadas antigas ─────────────
+function FriendsCard({ session }) {
+  const uid = session?.user?.id
+  const [friends, setFriends] = useState(null)
+  const [error,   setError]   = useState('')
+  const [busy,    setBusy]    = useState(false)
+  const [claimFor, setClaimFor] = useState(null)   // id do amigo com o vínculo aberto
+  const [claimName, setClaimName] = useState('')
+  const [claimMsg, setClaimMsg] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const load = () => listFriends(uid).then(setFriends).catch(() => setFriends([]))
+  useEffect(() => { if (uid) load() }, [uid])
+
+  const invite = async (how) => {
+    setBusy(true); setError('')
+    try {
+      const link = await createInviteLink()
+      const nick = session?.user?.user_metadata?.nickname || (session?.user?.user_metadata?.full_name || '').split(' ')[0] || ''
+      const text = `⛳ ${nick ? nick + ' te convidou pro' : 'Bora usar o'} Caddie Stakes — o app que calcula as apostas do golfe (Nassau, Skins, Medal…) e fecha a conta no final.\n\nToque no link pra entrar e a gente fica conectado:\n${link}`
+      if (how === 'copy') {
+        try { await navigator.clipboard.writeText(link) } catch {}
+        setCopied(true); setTimeout(() => setCopied(false), 2000)
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+      }
+    } catch (e) {
+      console.error('Erro ao gerar convite:', e.message)
+      setError('Não foi possível gerar o convite agora. Tente de novo em instantes.')
+    }
+    setBusy(false)
+  }
+
+  const doClaim = async (f) => {
+    const nm = claimName.trim()
+    if (!nm) return
+    setBusy(true); setClaimMsg('')
+    try {
+      const n = await claimRounds(f.id, nm)
+      setClaimMsg(n > 0 ? `✓ ${n} rodada${n > 1 ? 's' : ''} vinculada${n > 1 ? 's' : ''} a ${f.nickname}.` : `Nenhuma rodada sua com o nome "${nm}" sem vínculo.`)
+    } catch (e) {
+      setClaimMsg('Não foi possível vincular agora.')
+    }
+    setBusy(false)
+  }
+
+  const unfriend = async (f) => {
+    setBusy(true)
+    try { await removeFriend(f.id); await load() } catch {}
+    setBusy(false)
+  }
+
+  return (
+    <div className="card">
+      <h2>Meus amigos</h2>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10, lineHeight: 1.6 }}>
+        Amigo conectado aparece com <strong style={{ color: 'var(--green2, #5dba7a)' }}>✓</strong> na hora de montar a rodada — e as rodadas que vocês jogarem juntos aparecem no app dos dois. Ninguém mais vê.
+      </p>
+      {friends === null ? (
+        <p style={{ fontSize: 12, color: 'var(--muted)' }}>Carregando...</p>
+      ) : friends.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--muted2)', marginBottom: 6 }}>Nenhum amigo conectado ainda.</p>
+      ) : friends.map(f => (
+        <div key={f.id} style={{ padding: '9px 0', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, color: 'var(--cream)' }}>{f.nickname} <span style={{ color: 'var(--green2, #5dba7a)', fontWeight: 700 }}>✓</span></span>
+            <button type="button" onClick={() => { setClaimFor(claimFor === f.id ? null : f.id); setClaimName(f.nickname); setClaimMsg('') }}
+              style={{ background: 'rgba(201,168,76,0.1)', border: '0.5px solid var(--gold)', color: 'var(--gold)', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--sans)' }}>
+              Vincular rodadas antigas
+            </button>
+          </div>
+          {claimFor === f.id && (
+            <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,0.25)' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted2)', marginBottom: 6, lineHeight: 1.5 }}>
+                Nome com que {f.nickname} aparece nas rodadas antigas que <strong>você</strong> lançou:
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="text-input" style={{ flex: 1, marginBottom: 0 }} value={claimName} onChange={e => setClaimName(e.target.value)}/>
+                <button className="btn-secondary" style={{ width: 'auto', padding: '0 14px', marginBottom: 0 }} disabled={busy} onClick={() => doClaim(f)}>Vincular</button>
+              </div>
+              {claimMsg && <div style={{ fontSize: 12, color: 'var(--cream)', marginTop: 8 }}>{claimMsg}</div>}
+              <button type="button" onClick={() => unfriend(f)} disabled={busy}
+                style={{ marginTop: 10, background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 11, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--sans)' }}>
+                Desfazer amizade com {f.nickname}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      <button className="btn-primary" onClick={() => invite('whatsapp')} disabled={busy} style={{ marginTop: 12, marginBottom: 8 }}>
+        📲 Convidar amigo pelo WhatsApp
+      </button>
+      <button type="button" onClick={() => invite('copy')} disabled={busy}
+        style={{ width: '100%', background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--sans)' }}>
+        {copied ? '✓ Link copiado' : 'Copiar link de convite'}
+      </button>
+      {error && <p style={{ fontSize: 12, color: 'var(--red, #e05555)', marginTop: 8 }}>⚠️ {error}</p>}
     </div>
   )
 }
