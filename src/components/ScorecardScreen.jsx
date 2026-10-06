@@ -51,7 +51,9 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
 
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function ScorecardScreen({ config, onFinish, onBack, session, initialDraft }) {
+// readOnly: rodada já salva, aberta pelo Histórico — mostra só o Resumo, sem
+// editar nem salvar. storedMoney: o saldo gravado na época (é o que vale).
+export default function ScorecardScreen({ config, onFinish, onBack, session, initialDraft, readOnly, storedMoney, viewMeta }) {
   const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled, medalSide } = config
   // Retrocompatível: rodadas antigas (ou config sem o campo) tratam todo mundo como "joga individual"
   const indivEnabled = playsIndividual || players.map(() => true)
@@ -66,11 +68,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
       ? initialDraft.scores.map(row => Array.from({ length: 18 }, (_, i) => row[i] ?? null))
       : players.map(() => Array(18).fill(null)))
   const [activeHole, setActiveHole] = useState(() => initialDraft?.activeHole ?? 0)
-  const [tab, setTab]           = useState('card') // card | results
+  const [tab, setTab]           = useState(readOnly ? 'results' : 'card') // card | results
 
   // Salva a rodada em andamento no aparelho a cada score lançado (e ao trocar
   // de buraco), pra não perder nada se o celular fechar o app.
-  const savedRef = useRef(false)
+  const savedRef = useRef(!!readOnly) // visualização: nunca grava rascunho
   useEffect(() => {
     if (savedRef.current) return
     saveDraft(session?.user?.id, { config, scores, activeHole, startedAt: initialDraft?.startedAt || config.startedAt })
@@ -220,6 +222,9 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
       : mainMoney
   , [mainMoney, medalSideResult])
 
+  // Na visualização de rodada salva, o saldo exibido é o gravado na época
+  const shownMoney = readOnly && Array.isArray(storedMoney) ? storedMoney : playerMoney
+
   const mainFormatLabel = {
     nassau: 'Nassau', matchplay: 'Match Play', catraca: 'Catraca', medal: 'Medal',
     skins: 'Skins', stableford: 'Stableford', sindicato: 'Sindicato',
@@ -310,7 +315,17 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
         course_name: course?.name || 'Campo',
         course_id:   course?.id || 'custom',
         played_at:   new Date().toISOString(),
-        bet_values:  medalSideResult ? { ...betValues, medalSide } : betValues,
+        // snapshot: tudo o que é preciso pra remontar o Resumo depois, pelo Histórico
+        bet_values:  {
+          ...betValues,
+          ...(medalSideResult ? { medalSide } : {}),
+          snapshot: {
+            v: 1, format, numPlayers, betUnit, si, par, course,
+            players: players.map(p => ({ name: p.name, handicap: p.handicap, userId: p.userId || null })),
+            teamA, teamB, playWithin: !!playWithin, teamsEnabled: teamsEnabled !== false,
+            playsIndividual: playsIndividual || null,
+          },
+        },
         num_players: numPlayers,
         // Rodada da versão com amigos: quem vê é decidido pelo vínculo das
         // contas (player_user_id), não mais pelo primeiro nome.
@@ -494,10 +509,14 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
       <header className="app-header">
         <button className="back-btn" onClick={onBack}>←</button>
         <span className="header-title">⛳ Caddie<span>Stakes</span></span>
+        {readOnly ? (
+          <span style={{ fontSize: 12, color: 'var(--muted2)', minWidth: 60, textAlign: 'right' }}>{viewMeta?.dateLabel || ''}</span>
+        ) : (
         <div className="view-toggle">
           <button className={tab === 'card' ? 'active' : ''} onClick={() => setTab('card')}>Cartão</button>
           <button className={tab === 'results' ? 'active' : ''} onClick={() => setTab('results')}>Resumo</button>
         </div>
+        )}
       </header>
 
       {tab === 'card' ? (
@@ -692,10 +711,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
             <h2>Saldo Final</h2>
             <div className="saldo-grid">
               {players.map((p, pi) => (
-                <div key={pi} className={`saldo-cell ${playerMoney[pi] > 0 ? 'win' : playerMoney[pi] < 0 ? 'lose' : 'tie'}`}>
+                <div key={pi} className={`saldo-cell ${shownMoney[pi] > 0 ? 'win' : shownMoney[pi] < 0 ? 'lose' : 'tie'}`}>
                   <div className="saldo-name">{p.name}</div>
-                  <div className={`saldo-val ${playerMoney[pi] > 0 ? 'pos' : playerMoney[pi] < 0 ? 'neg' : 'neu'}`}>
-                    {playerMoney[pi] > 0 ? '+' : ''}R${fmtBRL(playerMoney[pi])}
+                  <div className={`saldo-val ${shownMoney[pi] > 0 ? 'pos' : shownMoney[pi] < 0 ? 'neg' : 'neu'}`}>
+                    {shownMoney[pi] > 0 ? '+' : ''}R${fmtBRL(shownMoney[pi])}
                   </div>
                   {medalSideResult && (
                     <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 4, lineHeight: 1.4 }}>
@@ -710,12 +729,18 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
 
           {/* Acerto via PIX — quem paga quem, com QR / copia e cola */}
           <PixSettlement
-            players={players.map((p, pi) => ({ name: p.name, handicap: p.handicap, money: playerMoney[pi] }))}
-            meIndex={0}
+            players={players.map((p, pi) => ({ name: p.name, handicap: p.handicap, money: shownMoney[pi] }))}
+            meIndex={readOnly ? (viewMeta?.meIndex ?? -1) : 0}
             description={`Golfe ${course?.name || ''} ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`}
           />
 
+          {readOnly && viewMeta?.legacy && (
+            <p style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5, margin: '4px 0 14px' }}>
+              Rodada anterior a esta tela: o detalhe acima foi remontado com as opções padrão do formato. O Saldo Final é o que foi salvo na época.
+            </p>
+          )}
           {/* Save — ao concluir, segue direto para o Modo Apresentação */}
+          {!readOnly && <>
           <button className="btn-green" onClick={saveRound} disabled={saving || saved}
             style={{ marginBottom: saveError ? 6 : 10 }}>
             {saving || saved ? 'Salvando...' : '💾  Salvar rodada'}
@@ -725,6 +750,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
               Não foi possível salvar: {saveError}
             </p>
           )}
+          </>}
         </div>
       )}
     </div>

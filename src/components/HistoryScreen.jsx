@@ -2,6 +2,57 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { resizeImageToBase64 } from '../lib/image'
 import PixSettlement, { PixKeyForm } from './PixSettlement'
+import ScorecardScreen from './ScorecardScreen'
+import { COURSES } from '../lib/golf'
+
+// Remonta a configuração de uma rodada salva pra abrir o Resumo dela.
+// Rodadas novas trazem um "snapshot" completo; nas antigas, o que falta
+// (opções de dupla/individual) vai com o padrão do formato.
+async function buildViewConfig(r) {
+  const bv = r.bet_values || {}
+  const snap = bv.snapshot
+  const rps = r.round_players || []
+  let players, scores, si, par, course, teamA, teamB, extra, legacy = false, stored
+  if (snap?.players?.length) {
+    const used = new Set()
+    const rows = snap.players.map(sp => {
+      const i = rps.findIndex((rp, k) => !used.has(k) && rp.player_name === sp.name)
+      if (i >= 0) used.add(i)
+      return rps[i] || {}
+    })
+    players = snap.players.map(sp => ({ name: sp.name, handicap: sp.handicap, userId: sp.userId || null }))
+    scores  = rows.map(rp => rp.gross_scores || Array(18).fill(null))
+    stored  = rows.map(rp => Number(rp.money_result || 0))
+    ;({ si, par, course, teamA, teamB } = snap)
+    extra = { playWithin: snap.playWithin, teamsEnabled: snap.teamsEnabled, playsIndividual: snap.playsIndividual, betUnit: snap.betUnit }
+  } else {
+    legacy = true
+    const ord = [...rps].sort((a, b) => (a.team || 'A').localeCompare(b.team || 'A'))
+    players = ord.map(rp => ({ name: rp.player_name, handicap: Number(rp.handicap || 0), userId: rp.player_user_id || null }))
+    scores  = ord.map(rp => rp.gross_scores || Array(18).fill(null))
+    stored  = ord.map(rp => Number(rp.money_result || 0))
+    teamA = ord.map((rp, i) => rp.team === 'B' ? -1 : i).filter(i => i >= 0)
+    teamB = ord.map((rp, i) => rp.team === 'B' ? i : -1).filter(i => i >= 0)
+    if (teamA.length !== 2 || teamB.length !== 2) { teamA = [0, 1]; teamB = [2, 3] }
+    const fixed = COURSES.find(c => c.id === r.course_id)
+    if (fixed && fixed.id !== 'custom') { si = fixed.si; par = fixed.par; course = fixed }
+    else {
+      const { data } = await supabase.from('saved_courses').select('id,name,si,par').eq('id', r.course_id).maybeSingle()
+      const c = data || COURSES[0]
+      si = c.si; par = c.par; course = { id: c.id, name: r.course_name || c.name, si: c.si, par: c.par }
+    }
+    extra = { playWithin: false, teamsEnabled: true, playsIndividual: null, betUnit: bv.frontVal ?? 20 }
+  }
+  const { snapshot, medalSide, ...betValues } = bv
+  return {
+    legacy, stored,
+    config: {
+      format: r.format, players, si, par, course: course || { name: r.course_name }, teamA, teamB,
+      numPlayers: players.length, betValues, medalSide: medalSide || null, ...extra,
+    },
+    scores,
+  }
+}
 import { displayPixKey, PIX_TYPES } from '../lib/pix'
 import { listFriends, createInviteLink, claimRounds, removeFriend, syncProfile } from '../lib/friends'
 
@@ -267,6 +318,8 @@ export function HistoryScreen({ onBack, session }) {
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState('all')
   const [pixOpen, setPixOpen] = useState(null) // id da rodada com o acerto PIX aberto
+  const [viewing, setViewing] = useState(null) // rodada aberta no Resumo (somente leitura)
+  const [opening, setOpening] = useState(null)
 
   const firstName = firstNameLower(session?.user?.user_metadata?.full_name || '')
 
@@ -313,6 +366,30 @@ export function HistoryScreen({ onBack, session }) {
 
   const fmtDate = iso => new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
   const fmtMoney = (v) => !v ? 'R$ 0' : `${v > 0 ? '+' : ''}R$ ${Math.abs(v)}`
+
+  const openRound = async (r) => {
+    setOpening(r.id)
+    try {
+      const v = await buildViewConfig(r)
+      const meIndex = v.config.players.findIndex((p, i) => isMe({ player_name: p.name, player_user_id: p.userId }))
+      setViewing({ ...v, meIndex, dateLabel: fmtDate(r.played_at), id: r.id })
+    } catch (e) { console.error('Erro ao abrir rodada:', e) }
+    setOpening(null)
+  }
+
+  if (viewing) return (
+    <ScorecardScreen
+      key={viewing.id}
+      readOnly
+      config={viewing.config}
+      initialDraft={{ scores: viewing.scores }}
+      storedMoney={viewing.stored}
+      viewMeta={{ dateLabel: viewing.dateLabel, legacy: viewing.legacy, meIndex: viewing.meIndex }}
+      session={session}
+      onBack={() => setViewing(null)}
+      onFinish={() => setViewing(null)}
+    />
+  )
 
   return (
     <div className="screen">
@@ -384,6 +461,12 @@ export function HistoryScreen({ onBack, session }) {
                   </div>
                 ))}
             </div>
+            <button type="button" onClick={() => openRound(r)} disabled={opening === r.id}
+              style={{ marginTop: 10, width: '100%', padding: '8px', borderRadius: 8, cursor: 'pointer',
+                background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.15)',
+                color: 'var(--cream)', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
+              {opening === r.id ? 'Abrindo...' : '📄 Ver resumo da rodada'}
+            </button>
             {r.round_players?.some(p => Math.abs(p.money_result || 0) >= 0.01) && (
               <button type="button" onClick={() => setPixOpen(pixOpen === r.id ? null : r.id)}
                 style={{ marginTop: 10, width: '100%', padding: '8px', borderRadius: 8, cursor: 'pointer',
