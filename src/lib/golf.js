@@ -30,6 +30,23 @@ export function getStrokesPair(hcpLow, hcpHigh, si, holeIdx) {
 export function getStrokesGlobal(playerHcp, lowestHcp, si, holeIdx) {
   return getStrokesPair(lowestHcp, playerHcp, si, holeIdx)
 }
+
+// Tacadas "contra o campo" (handicap cheio): o jogador recebe o handicap
+// inteiro distribuído pelo Stroke Index (SI 1 primeiro). Handicap plus
+// (negativo) DEVOLVE tacadas, começando pelos buracos mais fáceis (SI 18,
+// 17, …) — por isso o valor pode ser negativo (net = gross − tacadas).
+export function getStrokesCourse(hcp, si, holeIdx) {
+  if (hcp >= 0) return getStrokesPair(0, hcp, si, holeIdx)
+  const plus = -hcp
+  return -(Math.floor(plus / 18) + (si[holeIdx] > 18 - (plus % 18) ? 1 : 0))
+}
+
+// Buracos em que TODOS os jogadores já lançaram score — o placar ao vivo
+// dos formatos "todos contra todos" só compara buracos completos, pra não
+// premiar quem lançou primeiro.
+export function completeHoles(grossAll) {
+  return HOLES.map((_, i) => grossAll.every(row => row[i] !== null && row[i] !== undefined))
+}
  
 // ── Match comparison ──────────────────────────────────────────────────────────
 export function cmp(a, b) { return a < b ? 1 : a > b ? -1 : 0 }
@@ -175,8 +192,9 @@ export function calcSkins(grossAll, players, si, betPerSkin) {
       if (g === null) return null
       return g - getStrokesGlobal(p.handicap, lowestHcp, si, i)
     })
-    const validNets = nets.filter(n => n !== null)
-    if (!validNets.length) return
+    // Buraco só vale quando todos lançaram o score dele (placar ao vivo justo)
+    if (nets.some(n => n === null)) return
+    const validNets = nets
  
     const best = Math.min(...validNets)
     const winners = nets.map((n, pi) => n === best ? pi : -1).filter(pi => pi >= 0)
@@ -204,13 +222,12 @@ export function calcSkins(grossAll, players, si, betPerSkin) {
 // net-stroke total takes the whole pot (split evenly if tied). No press, no pairwise H2H — everyone in the round
 // competes against everyone else at once, like Skins/Stableford.
 export function calcMedal(grossAll, players, si, betValues) {
-  const lowestHcp = Math.min(...players.map(p => p.handicap))
+  // Medal é "contra o campo": net = gross − handicap CHEIO de cada jogador
+  // (tacadas pelo SI). Só entram buracos que todos já lançaram, pra o placar
+  // ao vivo comparar a mesma coisa; com os 18 lançados, conta tudo.
+  const done = completeHoles(grossAll)
   const netAll = players.map((p, pi) =>
-    HOLES.map((_, i) => {
-      const g = grossAll[pi][i]
-      if (g === null) return null
-      return g - getStrokesGlobal(p.handicap, lowestHcp, si, i)
-    })
+    HOLES.map((_, i) => done[i] ? grossAll[pi][i] - getStrokesCourse(p.handicap, si, i) : null)
   )
  
   const segmentTotals = (holeIdxs) => netAll.map(net =>
@@ -257,13 +274,13 @@ export function stablefordPoints(net, par) {
 }
  
 export function calcStableford(grossAll, players, si, par, betPerPoint) {
-  const lowestHcp = Math.min(...players.map(p => p.handicap))
- 
+  // Stableford é "contra o campo": pontos pelo net com o handicap CHEIO de
+  // cada jogador (tacadas pelo SI; handicap plus devolve tacadas).
   const points = players.map((p, pi) =>
     HOLES.reduce((total, _, i) => {
       const g = grossAll[pi][i]
       if (g === null) return total
-      const net = g - getStrokesGlobal(p.handicap, lowestHcp, si, i)
+      const net = g - getStrokesCourse(p.handicap, si, i)
       return total + stablefordPoints(net, par[i])
     }, 0)
   )
