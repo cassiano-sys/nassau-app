@@ -8,6 +8,21 @@ import { supabase } from '../lib/supabase'
 // usuário aceitou.
 const TERMS_VERSION = '2026-09'
 
+// O Supabase devolve as mensagens de erro em inglês — traduz as mais comuns
+// pra quem está criando conta ou entrando não ficar sem entender o problema.
+function traduzErro(msg = '') {
+  const m = msg.toLowerCase()
+  if (m.includes('invalid login credentials')) return 'Email ou senha incorretos.'
+  if (m.includes('email not confirmed')) return 'Seu email ainda não foi confirmado. Abra o link que enviamos (veja também a caixa de spam).'
+  if (m.includes('already registered') || m.includes('already been registered')) return 'Este email já tem conta. Use "Entrar" ou "Esqueci minha senha".'
+  if (m.includes('password should be at least') || m.includes('password is too short')) return 'A senha precisa ter pelo menos 6 caracteres.'
+  if (m.includes('unable to validate email') || m.includes('invalid email') || m.includes('email address') && m.includes('invalid')) return 'Email inválido. Confira se digitou certo.'
+  if (m.includes('rate limit') || m.includes('too many') || m.includes('security purposes')) return 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.'
+  if (m.includes('error sending') || m.includes('sending confirmation') || m.includes('sending recovery')) return 'Não conseguimos enviar o email agora. Tente de novo em alguns minutos ou fale com o suporte.'
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Sem conexão com o servidor. Confira sua internet e tente de novo.'
+  return msg
+}
+
 export default function AuthScreen({ onAuth }) {
   const [mode, setMode]       = useState('login') // login | signup | forgot
   const [email, setEmail]     = useState('')
@@ -18,12 +33,12 @@ export default function AuthScreen({ onAuth }) {
   const [sent, setSent]       = useState(false)
   const [resetSent, setResetSent] = useState(false)
 
-  const err = (msg) => { setError(msg); setLoading(false) }
+  const err = (msg) => { setError(traduzErro(msg)); setLoading(false) }
 
   const handleEmail = async () => {
     setLoading(true); setError('')
     if (mode === 'signup') {
-      const { error: e } = await supabase.auth.signUp({
+      const { data, error: e } = await supabase.auth.signUp({
         email, password,
         options: { data: {
           full_name: name,
@@ -32,6 +47,10 @@ export default function AuthScreen({ onAuth }) {
         } }
       })
       if (e) return err(e.message)
+      // Com a confirmação de email DESLIGADA no Supabase, o cadastro já volta
+      // com a sessão aberta — entra direto, sem mandar a pessoa esperar um
+      // email que nunca vai chegar. Ligada, aí sim mostra "verifique seu email".
+      if (data?.session) { setLoading(false); return onAuth(data.session) }
       setSent(true)
     } else {
       const { data, error: e } = await supabase.auth.signInWithPassword({ email, password })
