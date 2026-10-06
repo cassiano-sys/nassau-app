@@ -263,14 +263,11 @@ export function calcMedal(grossAll, players, si, betValues) {
 }
  
 // ── Stableford ────────────────────────────────────────────────────────────────
-// Points: eagle=4, birdie=3, par=2, bogey=1, double bogey+=0
+// Points (regra oficial): par=2, +1 por tacada abaixo do par, −1 por tacada
+// acima, mínimo 0 — birdie=3, eagle=4, albatroz=5, condor (4 abaixo)=6;
+// bogey=1, duplo bogey ou pior=0.
 export function stablefordPoints(net, par) {
-  const diff = par - net
-  if (diff >= 2)  return 4  // eagle or better
-  if (diff === 1) return 3  // birdie
-  if (diff === 0) return 2  // par
-  if (diff === -1) return 1 // bogey
-  return 0                  // double bogey or worse
+  return Math.max(0, 2 + (par - net))
 }
  
 export function calcStableford(grossAll, players, si, par, betPerPoint) {
