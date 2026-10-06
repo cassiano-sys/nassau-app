@@ -9,6 +9,7 @@ import {
 import { resizeImageToBase64 } from '../lib/image'
 import PixSettlement from './PixSettlement'
 import { saveDraft, clearDraft } from '../lib/draft'
+import { isLikelyDuplicate } from '../lib/duplicate'
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
 // A leitura por foto envolve mandar até 2 imagens pra um modelo de visão e
@@ -80,6 +81,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [dupWarning, setDupWarning] = useState(null) // { who, when } — rodada igual já salva
   const [quickEntry, setQuickEntry] = useState(false) // grid completo em vez de buraco a buraco
 
   // Photo states
@@ -283,8 +285,38 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
   }
 
  // ── Save round ──
-  const saveRound = async () => {
-    setSaving(true); setSaveError('')
+  // Procura, entre as rodadas que você já enxerga das últimas 16h, uma igual a
+  // esta (mesmos jogadores e scores) — ex.: um amigo do grupo já lançou o jogo.
+  const findDuplicate = async (uid) => {
+    try {
+      const since = new Date(Date.now() - 16 * 3600 * 1000).toISOString()
+      const { data } = await supabase.from('rounds')
+        .select('id,user_id,played_at,round_players(player_name,player_user_id,gross_scores)')
+        .gte('played_at', since)
+      const cand = players.map((p, pi) => ({ name: p.name, userId: p.userId || null, scores: scores[pi] }))
+      const dup = (data || []).find(r => isLikelyDuplicate(cand, r))
+      if (!dup) return null
+      let who = 'você mesmo'
+      if (dup.user_id !== uid) {
+        const { data: prof } = await supabase.from('profiles').select('nickname,full_name').eq('id', dup.user_id).maybeSingle()
+        who = prof?.nickname || (prof?.full_name || '').split(' ')[0] || 'outra pessoa do grupo'
+      }
+      const when = new Date(dup.played_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      return { who, when }
+    } catch (e) {
+      console.error('Checagem de duplicada falhou (seguindo com o salvamento):', e)
+      return null
+    }
+  }
+
+  const discardDuplicate = () => {
+    savedRef.current = true
+    clearDraft(session?.user?.id)
+    onFinish('history')
+  }
+
+  const saveRound = async (force = false) => {
+    setSaving(true); setSaveError(''); setDupWarning(null)
     let uid = null
     try {
       // Busca o usuário direto do servidor (em vez de confiar no `session`
@@ -298,6 +330,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
         throw new Error('Sua sessão expirou. Saia e entre de novo antes de salvar a rodada.')
       }
       uid = userData.user.id
+
+      if (force !== true) {
+        const dup = await findDuplicate(uid)
+        if (dup) { setDupWarning(dup); setSaving(false); return }
+      }
 
       // Gera o id da rodada aqui mesmo, em vez de pedir pro Postgres gerar
       // e devolver com `.select().single()`. O Postgres aplica a política
@@ -740,8 +777,23 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
             </p>
           )}
           {/* Save — ao concluir, segue direto para o Modo Apresentação */}
-          {!readOnly && <>
-          <button className="btn-green" onClick={saveRound} disabled={saving || saved}
+          {!readOnly && dupWarning && (
+            <div className="card" style={{ borderColor: 'var(--gold)' }}>
+              <h2 style={{ marginBottom: 6 }}>⚠️ Essa rodada parece já estar salva</h2>
+              <p style={{ fontSize: 13, color: 'var(--cream)', lineHeight: 1.55, marginBottom: 12 }}>
+                {dupWarning.who === 'você mesmo' ? 'Você já salvou' : <><strong>{dupWarning.who}</strong> já salvou</>} hoje às {dupWarning.when} uma rodada com os mesmos jogadores e praticamente os mesmos scores. Salvar de novo faz o jogo contar <strong>em dobro</strong> no saldo e no ranking de todo mundo.
+              </p>
+              <button className="btn-primary" onClick={discardDuplicate} style={{ marginBottom: 8 }}>
+                Não salvar — ver a que já existe
+              </button>
+              <button type="button" onClick={() => saveRound(true)} disabled={saving}
+                style={{ width: '100%', background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--sans)' }}>
+                É outro jogo — salvar mesmo assim
+              </button>
+            </div>
+          )}
+          {!readOnly && !dupWarning && <>
+          <button className="btn-green" onClick={() => saveRound()} disabled={saving || saved}
             style={{ marginBottom: saveError ? 6 : 10 }}>
             {saving || saved ? 'Salvando...' : '💾  Salvar rodada'}
           </button>
