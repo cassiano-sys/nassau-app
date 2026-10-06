@@ -9,6 +9,11 @@ import PresentationScreen  from './components/PresentationScreen'
 import { HistoryScreen, RankingScreen, ProfileScreen } from './components/HistoryScreen'
 import BugReportButton     from './components/BugReportButton'
 import { loadDraft }       from './lib/draft'
+import { captureInviteFromUrl, pendingInvite, clearPendingInvite, acceptInvite, syncProfile } from './lib/friends'
+
+// Link de convite (?convite=CODE): guarda no aparelho antes de qualquer coisa,
+// pra sobreviver ao cadastro/login.
+captureInviteFromUrl()
 
 export default function App() {
   const [session,    setSession]    = useState(null)
@@ -22,6 +27,7 @@ export default function App() {
   // Home como se tivesse logado normalmente, sem nunca chegar a trocar a
   // senha de fato.
   const [passwordRecovery, setPasswordRecovery] = useState(false)
+  const [notice, setNotice] = useState('') // aviso na Home (ex.: convite aceito)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -33,6 +39,22 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Logado: mantém o perfil (apelido) em dia pros amigos e aceita convite pendente
+  const uid = session?.user?.id
+  useEffect(() => {
+    if (!uid) return
+    syncProfile(session.user)
+    const code = pendingInvite()
+    if (!code) return
+    acceptInvite(code)
+      .then(nick => setNotice(`🤝 Você e ${nick} agora são amigos no Caddie Stakes.`))
+      .catch(e => {
+        console.error('Convite não aceito:', e.message)
+        if (!/not authenticated/i.test(e.message)) setNotice('Esse link de convite não é mais válido. Peça um novo ao seu amigo.')
+      })
+      .finally(clearPendingInvite)
+  }, [uid])
 
   if (loading) return <Splash />
   if (passwordRecovery) return <ResetPasswordScreen onDone={() => setPasswordRecovery(false)}/>
@@ -53,7 +75,7 @@ export default function App() {
   else if (screen === 'history')      content = <HistoryScreen      onBack={() => nav('home')} session={session}/>
   else if (screen === 'ranking')      content = <RankingScreen      onBack={() => nav('home')} session={session}/>
   else if (screen === 'profile')      content = <ProfileScreen      onBack={() => nav('home')} session={session} onSignOut={() => { setSession(null); nav('home') }}/>
-  else                                 content = <HomeScreen nav={nav} session={session} onResume={resume}/>
+  else                                 content = <HomeScreen nav={nav} session={session} onResume={resume} notice={notice} onDismissNotice={() => setNotice('')}/>
 
   // Botão flutuante de "relatar problema" — aparece em toda tela logada,
   // menos na Apresentação (tela em tela cheia, sem distrações, no fim da
