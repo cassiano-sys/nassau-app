@@ -2,7 +2,7 @@
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
-  getStrokesGlobal,
+  getStrokesGlobal, getStrokesCourse,
   calcIndiv, calcTeam, calcMoney, segMoney,
   calcSkins, calcStableford, calcMedal, calcSindicato, cmp,
 } from '../lib/golf'
@@ -534,7 +534,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {players.map((p, pi) => {
-                    const strokes = getStrokesGlobal(p.handicap, lowestHcp, si, activeHole)
+                    const strokes = getStrokesCourse(p.handicap, si, activeHole)
                     const g       = scores[pi][activeHole]
                     const isSet   = g !== null
                     const net     = isSet ? g - strokes : null
@@ -559,7 +559,7 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cream)', letterSpacing: '0.3px' }}>{p.name}</div>
                           <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 2, letterSpacing: '0.3px' }}>
-                            HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : ' · scratch'}
+                            HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : strokes < 0 ? ` · −${-strokes}` : ' · scratch'}
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -865,19 +865,14 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
   const parF9  = par.slice(0,9).reduce((a,b)=>a+b,0)
   const parB9  = par.slice(9).reduce((a,b)=>a+b,0)
 
-  // O "Net" deste resumo é só uma leitura informativa por jogador - NÃO
-  // participa de nenhuma conta de dinheiro (Nassau/Skins/Medal/Stableford
-  // continuam usando o handicap relativo ao menor do grupo, que é a regra
-  // certa para apostas). Aqui, para não confundir quem está lendo o cartão,
-  // cada jogador vê o PRÓPRIO net usando o handicap cheio dele (tacadas
-  // distribuídas pelo Stroke Index a partir do zero) - por isso passamos
-  // 0 no lugar do menor handicap do grupo.
+  // "Total Net" = net contra o campo (gross − handicap cheio, pelo SI) — o
+  // mesmo net do Medal. Handicap plus devolve tacadas (getStrokesCourse).
   const playerStats = players.map((p, pi) => {
     let f9G=0, b9G=0, f9N=0, b9N=0, f9C=0, b9C=0
     HOLES.forEach((_, i) => {
       const g = scores[pi][i]
       if (g !== null) {
-        const st = getStrokesGlobal(p.handicap, 0, si, i)
+        const st = getStrokesCourse(p.handicap, si, i)
         if (i < 9) { f9G+=g; f9N+=g-st; f9C++ } else { b9G+=g; b9N+=g-st; b9C++ }
       }
     })
@@ -933,7 +928,7 @@ function FullScorecard({ players, scores, si, par, lowestHcp, teamA }) {
                     </td>
                     {holes.map(h=>{
                       const i=h-1, g=scores[pi][i]
-                      const net2 = g!==null ? g - getStrokesGlobal(p.handicap, 0, si, i) : null
+                      const net2 = g!==null ? g - getStrokesCourse(p.handicap, si, i) : null
                       return (
                         <td key={h} style={{ textAlign:'center', padding:'5px 2px' }}>
                           {g!==null?(
