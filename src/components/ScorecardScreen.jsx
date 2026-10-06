@@ -8,6 +8,7 @@ import {
 } from '../lib/golf'
 import { resizeImageToBase64 } from '../lib/image'
 import PixSettlement from './PixSettlement'
+import { saveDraft, clearDraft } from '../lib/draft'
 
 // ── Photo capture via IA ───────────────────────────────────────────────────────
 // A leitura por foto envolve mandar até 2 imagens pra um modelo de visão e
@@ -50,7 +51,7 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
 
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function ScorecardScreen({ config, onFinish, onBack, session }) {
+export default function ScorecardScreen({ config, onFinish, onBack, session, initialDraft }) {
   const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled, medalSide } = config
   // Retrocompatível: rodadas antigas (ou config sem o campo) tratam todo mundo como "joga individual"
   const indivEnabled = playsIndividual || players.map(() => true)
@@ -59,9 +60,21 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
   // comportamento de rodadas já em andamento.
   const teamsOn = teamsEnabled !== false
 
-  const [scores, setScores]     = useState(() => players.map(() => Array(18).fill(null)))
-  const [activeHole, setActiveHole] = useState(0)
+  // Retomando uma rodada em andamento: começa dos scores guardados no aparelho
+  const [scores, setScores]     = useState(() =>
+    initialDraft?.scores?.length === players.length
+      ? initialDraft.scores.map(row => Array.from({ length: 18 }, (_, i) => row[i] ?? null))
+      : players.map(() => Array(18).fill(null)))
+  const [activeHole, setActiveHole] = useState(() => initialDraft?.activeHole ?? 0)
   const [tab, setTab]           = useState('card') // card | results
+
+  // Salva a rodada em andamento no aparelho a cada score lançado (e ao trocar
+  // de buraco), pra não perder nada se o celular fechar o app.
+  const savedRef = useRef(false)
+  useEffect(() => {
+    if (savedRef.current) return
+    saveDraft(session?.user?.id, { config, scores, activeHole, startedAt: initialDraft?.startedAt || config.startedAt })
+  }, [scores, activeHole])
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -366,6 +379,8 @@ export default function ScorecardScreen({ config, onFinish, onBack, session }) {
       }
 
       setSaved(true)
+      savedRef.current = true
+      clearDraft(session?.user?.id) // rodada salva no banco — o rascunho local não é mais necessário
       // Avança direto para o Modo Apresentação — sem tela intermediária
       window._nassauPresentation = { players, playerMoney, course, tLA, tLB }
       onFinish('presentation')

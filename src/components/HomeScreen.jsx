@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { loadDraft, clearDraft, draftSummary } from '../lib/draft'
 
 function firstNameLower(fullName) {
   if (!fullName) return ''
   return fullName.trim().split(' ')[0].toLowerCase()
 }
 
-export default function HomeScreen({ nav, session }) {
+export default function HomeScreen({ nav, session, onResume }) {
+  const [draft,   setDraft]   = useState(() => loadDraft(session?.user?.id))
+  const [confirmNew, setConfirmNew] = useState(false)
   const [stats,   setStats]   = useState(null)
   const [rounds,  setRounds]  = useState([])
   const [loading, setLoading] = useState(true)
@@ -83,10 +86,44 @@ export default function HomeScreen({ nav, session }) {
           </div>
         )}
 
-        {/* Nova Rodada */}
-        <button className="btn-primary" onClick={() => nav('setup')} style={{ marginBottom: 16 }}>
-          ⛳  Nova Rodada
-        </button>
+        {/* Rodada em andamento (guardada no aparelho) */}
+        {draft && (() => {
+          const { holesDone } = draftSummary(draft)
+          const when = new Date(draft.savedAt)
+          const hhmm = when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          const names = draft.config.players.map(p => p.name).join(', ')
+          return (
+            <div className="card" style={{ borderColor: 'var(--gold)', marginBottom: 12 }}>
+              <h2 style={{ marginBottom: 6 }}>⏸️ Rodada em andamento</h2>
+              <div style={{ fontSize: 13, color: 'var(--cream)', marginBottom: 2 }}>
+                {draft.config.course?.name || 'Campo'} · {holesDone > 0 ? `${holesDone} buraco${holesDone > 1 ? 's' : ''} lançado${holesDone > 1 ? 's' : ''}` : 'nenhum score ainda'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted2)', marginBottom: 12 }}>{names} · salva às {hhmm}</div>
+              <button className="btn-primary" onClick={onResume} style={{ marginBottom: 8 }}>▶  Continuar rodada</button>
+              <button type="button" onClick={() => { clearDraft(session?.user?.id); setDraft(null) }}
+                style={{ width: '100%', background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'var(--sans)' }}>
+                Descartar esta rodada
+              </button>
+            </div>
+          )
+        })()}
+
+        {/* Nova Rodada — se já existe uma em andamento, confirma antes de descartar */}
+        {confirmNew ? (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--cream)', lineHeight: 1.5, marginBottom: 12 }}>
+              Começar uma rodada nova <strong>descarta a rodada em andamento</strong>, que ainda não foi salva. Continuar?
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-secondary" style={{ marginBottom: 0 }} onClick={() => setConfirmNew(false)}>Voltar</button>
+              <button className="btn-danger" style={{ width: '100%', padding: 12 }} onClick={() => { clearDraft(session?.user?.id); setDraft(null); nav('setup') }}>Descartar e começar</button>
+            </div>
+          </div>
+        ) : (
+          <button className={draft ? 'btn-secondary' : 'btn-primary'} onClick={() => draft ? setConfirmNew(true) : nav('setup')} style={{ marginBottom: 16 }}>
+            ⛳  Nova Rodada
+          </button>
+        )}
 
         {/* Últimas rodadas */}
         {rounds.length > 0 && (
