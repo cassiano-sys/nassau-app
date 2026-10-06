@@ -158,6 +158,12 @@ export function zeroSum(gross) {
  
 // ── Skins ─────────────────────────────────────────────────────────────────────
 // Each hole is worth 1 skin. Ties carry over to next hole.
+// Money: each skin is paid by EVERY other player — "skins a R$20" means the
+// winner of a skin collects R$20 from each opponent. So a player's balance
+// is betPerSkin × (n × theirSkins − totalSkins): zero-sum by construction,
+// and correct even when every player won at least one skin (the old
+// zeroSum() model only charged players with zero skins, so a round where
+// everyone won something showed everyone positive).
 export function calcSkins(grossAll, players, si, betPerSkin) {
   const lowestHcp = Math.min(...players.map(p => p.handicap))
   const skins = players.map(() => 0)
@@ -186,16 +192,16 @@ export function calcSkins(grossAll, players, si, betPerSkin) {
   const totalSkins = skins.reduce((a, b) => a + b, 0)
   return {
     skins,
-    money: zeroSum(skins.map(s => s * betPerSkin)),
+    money: skins.map(s => betPerSkin * (players.length * s - totalSkins)),
     totalSkins,
     carryover,
   }
 }
  
 // ── Medal (stroke play) ──────────────────────────────────────────────────────
-// Each segment (Front 9 / Back 9 / Total 18) is its own winner-take-all prize:
-// whoever has the LOWEST net-stroke total in that segment collects its value
-// (split evenly if tied). No press, no pairwise H2H — everyone in the round
+// Each segment (Front 9 / Back 9 / Total 18) is its own winner-take-all game:
+// every player stakes the segment's value, and whoever has the LOWEST
+// net-stroke total takes the whole pot (split evenly if tied). No press, no pairwise H2H — everyone in the round
 // competes against everyone else at once, like Skins/Stableford.
 export function calcMedal(grossAll, players, si, betValues) {
   const lowestHcp = Math.min(...players.map(p => p.handicap))
@@ -211,13 +217,19 @@ export function calcMedal(grossAll, players, si, betValues) {
     holeIdxs.reduce((sum, i) => sum + (net[i] !== null ? net[i] : 0), 0)
   )
  
+  // `value` is what EACH player stakes on that segment — the segment's pot is
+  // value × number of players (e.g. 4 players at R$20 → R$80 pot). Whoever
+  // has the lowest net total takes the whole pot: every loser pays exactly
+  // `value`, and the winner nets value × (n − 1). Tied winners split the pot
+  // evenly (each still having put in their own `value`).
   const payout = (totals, value) => {
     const min = Math.min(...totals)
     const winners = totals.map((t, pi) => t === min ? pi : -1).filter(pi => pi >= 0)
     // Everyone tied (including a fully-unplayed segment, where every total
-    // is still 0) — no one actually won, so it's a push, not a full split.
+    // is still 0) — no one actually won, so it's a push: everyone keeps their stake.
     if (winners.length === totals.length) return totals.map(() => 0)
-    return zeroSum(totals.map((_, pi) => winners.includes(pi) ? value / winners.length : 0))
+    const pot = value * totals.length
+    return totals.map((_, pi) => winners.includes(pi) ? pot / winners.length - value : -value)
   }
  
   const front = segmentTotals(FRONT)
@@ -259,17 +271,13 @@ export function calcStableford(grossAll, players, si, par, betPerPoint) {
   const maxPoints = Math.max(...points)
   const winners   = points.map((pts, pi) => pts === maxPoints ? pi : -1).filter(pi => pi >= 0)
  
-  // Everyone tied for first (including nobody having played yet) — push, no
-  // money changes hands. Otherwise the margin is against the best score
-  // among those who did NOT win (the true "2nd place"), not an arbitrary
-  // non-winner — and the prize is funded by whoever won nothing, not
-  // invented from thin air.
-  let money = players.map(() => 0)
-  if (winners.length < players.length) {
-    const runnerUp = Math.max(...points.filter((_, pi) => !winners.includes(pi)))
-    const perWinner = betPerPoint * (maxPoints - runnerUp)
-    money = zeroSum(players.map((_, pi) => winners.includes(pi) ? perWinner : 0))
-  }
+  // Money: "per point, against each opponent" — every pair of players
+  // settles the difference in their points × betPerPoint. Summed over all
+  // opponents, a player's balance is betPerPoint × (n × theirPoints −
+  // totalPoints). Zero-sum by construction; a bigger margin pays more, and
+  // 3rd place pays more than 2nd (unlike the old leader-vs-runner-up model).
+  const totalPoints = points.reduce((a, b) => a + b, 0)
+  const money = points.map(pts => betPerPoint * (players.length * pts - totalPoints))
  
   return { points, winners, money }
 }
