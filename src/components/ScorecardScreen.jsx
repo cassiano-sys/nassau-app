@@ -24,9 +24,12 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 55000)
   try {
+    // O servidor só faz a leitura pra quem está logado — manda o token da sessão
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('Sua sessão expirou. Saia e entre de novo para usar a leitura por foto.')
     const response = await fetch('/api/read-card', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ imageBase64, players, si, par, handwritingBase64 }),
       signal: controller.signal,
     })
