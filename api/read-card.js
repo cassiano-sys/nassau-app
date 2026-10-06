@@ -9,7 +9,7 @@ import https from 'https'
 export const config = {
   maxDuration: 60,
 }
- 
+
 // ── Proteção do endpoint ─────────────────────────────────────────────────────
 // Cada chamada aqui gasta créditos da API da Anthropic. Sem proteção, qualquer
 // pessoa que descobrisse o endereço poderia usar a leitura (e os créditos) à
@@ -19,12 +19,12 @@ export const config = {
 // URL e chave "anon" do Supabase são públicas por natureza (já estão no app).
 const SUPABASE_URL = 'https://owswdfnjajscjzwkohaj.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93c3dkZm5qYWpzY2p6d2tvaGFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTg5ODQsImV4cCI6MjEwMDk5NDk4NH0.Rp2bKOtjn_763Y2h7xsqlqZLDe86NSFXaspc2AJccP8'
- 
+
 const ALLOWED_ORIGINS = [
   'https://app.caddiestakesgolf.com',
   'https://nassau-app-phi.vercel.app',
 ]
- 
+
 function allowedOrigin(origin) {
   if (!origin) return null
   if (ALLOWED_ORIGINS.includes(origin)) return origin
@@ -33,7 +33,7 @@ function allowedOrigin(origin) {
   if (/^http:\/\/localhost:\d+$/.test(origin)) return origin
   return null
 }
- 
+
 // Confere o token de login no Supabase. Devolve o usuário ou null.
 function getSupabaseUser(token) {
   return new Promise((resolve) => {
@@ -68,12 +68,12 @@ export default async function handler(req, res) {
  
   if (req.method === 'OPTIONS') return res.status(origin ? 200 : 403).end()
   if (req.method !== 'POST') return res.status(405).send('Method not allowed')
- 
+
   // Chamada de outro site (navegador informa a origem) → recusa
   if (req.headers.origin && !origin) {
     return res.status(403).json({ error: 'Origem não autorizada' })
   }
- 
+
   // Só quem está logado no app
   const auth = req.headers.authorization || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
@@ -209,4 +209,3 @@ export default async function handler(req, res) {
     })
   }
 }
- 
