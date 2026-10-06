@@ -6,7 +6,7 @@ const FORMATS = [
   { id: 'nassau',     label: 'Nassau',     icon: '⚔️', desc: 'Front 9 / Back 9 / Total com press automático' },
   { id: 'matchplay',  label: 'Match Play', icon: '🥊', desc: 'Igual ao Nassau, mas sem press — placar corrido simples' },
   { id: 'catraca',    label: 'Catraca',    icon: '⚙️', desc: 'Nassau com press a cada 1 buraco (individual) — aposta inicial de Front/Back vale dobro do press' },
-  { id: 'medal',      label: 'Medal',      icon: '🎖️', desc: 'Stroke play: menor total líquido leva Front 9 / Back 9 / Total' },
+  { id: 'medal',      label: 'Medal',      icon: '🎖️', desc: 'Stroke play: 3 jogos (Front 9 / Back 9 / Total). Todos apostam em cada um, menor total líquido leva o pote' },
   { id: 'skins',     label: 'Skins',      icon: '💰', desc: 'Cada buraco vale 1 skin. Empates acumulam.' },
   { id: 'stableford',label: 'Stableford', icon: '📊', desc: 'Pontos por buraco (birdie=3, par=2, bogey=1)' },
   { id: 'sindicato', label: 'Sindicato',  icon: '🤝', desc: 'Só 3 ou 4 jogadores: 6 pts por buraco (4-2-0) ou 12 pts (6-4-2-0). Pote dividido por colocação' },
@@ -452,6 +452,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
         {/* Apostas */}
         <div className="card">
           <h2>Valores das apostas (R$)</h2>
+          {format === 'medal' && (
+            <div style={{ fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: 'rgba(201,168,76,0.06)', border: '0.5px solid var(--border-gold)', borderRadius: 8 }}>
+              💡 No Medal, o valor é o que <strong>cada jogador</strong> aposta em cada jogo. Ex.: {numPlayers} jogadores a R$ {betValues.frontVal} no Front 9 → pote de R$ {betValues.frontVal * numPlayers}, todo pro menor total líquido do Front.
+            </div>
+          )}
           {format === 'catraca' && (
             <div style={{ fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5, marginBottom: 12, padding: '10px 12px', background: 'rgba(201,168,76,0.06)', border: '0.5px solid var(--border-gold)', borderRadius: 8 }}>
               💡 No Catraca, o valor de Front 9 e Back 9 é o valor de <strong>cada press</strong> — a primeira aposta da volta (antes de qualquer press) já entra valendo o <strong>dobro</strong> disso. Ex.: Front 9 = 5 → a volta em si vale 10, e cada press que nascer no meio dela vale 5. O Total 18 não tem press e vale exatamente o que você digitar.
@@ -493,6 +498,13 @@ export default function SetupScreen({ onStart, onBack, session }) {
               <span style={{ color: 'var(--muted2)', fontSize: 13 }}>R$</span>
             </div>
           )}
+          {(format === 'skins' || format === 'stableford') && (
+            <div style={{ fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5, marginTop: 10 }}>
+              {format === 'skins'
+                ? `Quem ganha um skin recebe R$ ${betUnit} de cada adversário.`
+                : `Cada jogador acerta com cada adversário a diferença de pontos × R$ ${betUnit}. Ex.: 38 × 34 pontos → R$ ${betUnit * 4}.`}
+            </div>
+          )}
         </div>
 
         {/* Medal adicional — aposta extra em paralelo ao formato principal */}
@@ -517,7 +529,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
               </span>
             </div>
             <p style={{ fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5, marginTop: 8, marginBottom: medalSideOn ? 12 : 0 }}>
-              Além do {FORMATS.find(f => f.id === format)?.label}, a rodada também vale um Medal (stroke play líquido, todos contra todos): menor total em cada trecho leva o valor dele. Valores independentes da aposta principal — use 0 pra deixar um trecho de fora.
+              Além do {FORMATS.find(f => f.id === format)?.label}, a rodada também vale um Medal (stroke play líquido, todos contra todos): cada jogador aposta o valor de cada trecho, e o menor total leva o pote daquele trecho. Valores independentes da aposta principal — use 0 pra deixar um trecho de fora.
             </p>
             {medalSideOn && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -659,7 +671,15 @@ function SindicatoBetConfig({ numPlayers, potValue, setPotValue, pct, pctSum, on
               value={v}
               onChange={e => onPct(pos, e.target.value)}
             />
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>R$ {fmt(potValue * (Number(v) || 0) / 100)}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.4 }}>
+              leva R$ {fmt(potValue * (Number(v) || 0) / 100)}
+              {(() => {
+                const net = potValue * (Number(v) || 0) / 100 - ante
+                return <div style={{ fontWeight: 700, color: net > 0 ? 'var(--green2, #5dba7a)' : net < 0 ? 'var(--red, #e05555)' : 'var(--muted2)' }}>
+                  saldo {net > 0 ? '+' : net < 0 ? '−' : ''}{fmt(Math.abs(net))}
+                </div>
+              })()}
+            </div>
           </div>
         ))}
       </div>
