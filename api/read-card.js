@@ -10,13 +10,77 @@ export const config = {
   maxDuration: 60,
 }
  
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+// ── Proteção do endpoint ─────────────────────────────────────────────────────
+// Cada chamada aqui gasta créditos da API da Anthropic. Sem proteção, qualquer
+// pessoa que descobrisse o endereço poderia usar a leitura (e os créditos) à
+// vontade. Agora: (1) só aceita chamadas de quem está logado no app — o token
+// da sessão Supabase é conferido no próprio Supabase antes de chamar a IA; e
+// (2) o navegador só libera chamadas vindas dos endereços do próprio app.
+// URL e chave "anon" do Supabase são públicas por natureza (já estão no app).
+const SUPABASE_URL = 'https://owswdfnjajscjzwkohaj.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93c3dkZm5qYWpzY2p6d2tvaGFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTg5ODQsImV4cCI6MjEwMDk5NDk4NH0.Rp2bKOtjn_763Y2h7xsqlqZLDe86NSFXaspc2AJccP8'
  
-  if (req.method === 'OPTIONS') return res.status(200).end()
+const ALLOWED_ORIGINS = [
+  'https://app.caddiestakesgolf.com',
+  'https://nassau-app-phi.vercel.app',
+]
+ 
+function allowedOrigin(origin) {
+  if (!origin) return null
+  if (ALLOWED_ORIGINS.includes(origin)) return origin
+  // Previews da própria Vercel e testes locais
+  if (/^https:\/\/nassau-app-[a-z0-9-]+\.vercel\.app$/.test(origin)) return origin
+  if (/^http:\/\/localhost:\d+$/.test(origin)) return origin
+  return null
+}
+ 
+// Confere o token de login no Supabase. Devolve o usuário ou null.
+function getSupabaseUser(token) {
+  return new Promise((resolve) => {
+    const url = new URL('/auth/v1/user', SUPABASE_URL)
+    const r = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'GET',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    }, (response) => {
+      let data = ''
+      response.on('data', chunk => data += chunk)
+      response.on('end', () => {
+        if (response.statusCode !== 200) return resolve(null)
+        try { resolve(JSON.parse(data)) } catch { resolve(null) }
+      })
+    })
+    r.on('error', () => resolve(null))
+    r.setTimeout(8000, () => { r.destroy(); resolve(null) })
+    r.end()
+  })
+}
+ 
+export default async function handler(req, res) {
+  const origin = allowedOrigin(req.headers.origin)
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+ 
+  if (req.method === 'OPTIONS') return res.status(origin ? 200 : 403).end()
   if (req.method !== 'POST') return res.status(405).send('Method not allowed')
+ 
+  // Chamada de outro site (navegador informa a origem) → recusa
+  if (req.headers.origin && !origin) {
+    return res.status(403).json({ error: 'Origem não autorizada' })
+  }
+ 
+  // Só quem está logado no app
+  const auth = req.headers.authorization || ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  const user = token ? await getSupabaseUser(token) : null
+  if (!user?.id) {
+    return res.status(401).json({ error: 'Faça login no app para usar a leitura por foto.' })
+  }
  
   try {
     let body = req.body
@@ -91,7 +155,10 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': process.env.VITE_ANTHROPIC_KEY,
+          // ANTHROPIC_API_KEY é o nome recomendado (sem o prefixo VITE_, que no
+          // Vite marca variáveis que PODEM ir pro navegador). Mantém o nome
+          // antigo como reserva até a variável ser renomeada na Vercel.
+          'x-api-key': process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_KEY,
           'anthropic-version': '2023-06-01',
           'Content-Length': Buffer.byteLength(requestBody)
         }
@@ -133,7 +200,7 @@ export default async function handler(req, res) {
     return res.status(200).json(result)
  
   } catch (e) {
-    console.error('read-card error:', e.message)
+    console.error('read-card error:', user.id, e.message)
     return res.status(200).json({
       scores: [],
       confidence: 'low',
@@ -142,3 +209,4 @@ export default async function handler(req, res) {
     })
   }
 }
+ 
