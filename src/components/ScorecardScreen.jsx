@@ -745,7 +745,7 @@ function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResu
         <div key={pi} className="seg-row">
           <span>{p.name}</span>
           <span style={{ color: 'var(--gold)', fontWeight: 700 }}>
-            {skinsResult.skins[pi]} skin{skinsResult.skins[pi] !== 1 ? 's' : ''} · +R$ {skinsResult.money[pi]}
+            {skinsResult.skins[pi]} skin{skinsResult.skins[pi] !== 1 ? 's' : ''} · {skinsResult.money[pi] > 0 ? '+' : skinsResult.money[pi] < 0 ? '−' : ''}R$ {Math.abs(skinsResult.money[pi])}
           </span>
         </div>
       ))}
@@ -794,7 +794,7 @@ function LiveScores({ format, pairs, players, indivResults, indivMoney, teamResu
               <div className="seg-row" style={{ paddingTop: 6 }}>
                 <div><span className="seg-label">Total 18</span>
                   <span className="seg-info" style={{ color: res.total18 > 0 ? '#7ab5f0' : res.total18 < 0 ? '#f07a7a' : 'var(--muted)' }}>
-                    {res.total18 === 0 ? 'AS' : `${res.total18 > 0 ? players[a].name : players[b].name} ${res.total18 > 0 ? '+' : ''}${res.total18}`}
+                    {res.total18 === 0 ? 'AS' : `${res.total18 > 0 ? players[a].name : players[b].name} +${Math.abs(res.total18)}`}
                   </span>
                 </div>
                 <MoneyTag val={Math.sign(res.total18) * betValues.totalVal}/>
@@ -836,7 +836,7 @@ function NassauSegRow({ seg, money, label, nA, nB, unit }) {
       <div style={{ flex: 1 }}>
         <span className="seg-label">{label}</span>
         <span className="seg-info" style={{ color: seg.mainScore > 0 ? '#7ab5f0' : seg.mainScore < 0 ? '#f07a7a' : 'var(--muted)' }}>
-          {seg.mainScore === 0 ? 'AS' : `${w} ${seg.mainScore > 0 ? '+' : ''}${seg.mainScore}`}
+          {seg.mainScore === 0 ? 'AS' : `${w} +${Math.abs(seg.mainScore)}`}
           {seg.pressScores.map((ps, i) => (
             <span key={i} style={{ marginLeft: 4, fontSize: 10, opacity: 0.8 }}>
               P{i+1}:{ps > 0 ? '+' : ''}{ps}
@@ -1229,6 +1229,7 @@ function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, t
             </div>
             <ResultDetailRow label="Front 9" seg={res.front} money={m.front} nA={players[a].name} nB={players[b].name} unit={betValues.frontVal}/>
             <ResultDetailRow label="Back 9"  seg={res.back}  money={m.back}  nA={players[a].name} nB={players[b].name} unit={betValues.backVal}/>
+            <Total18Row score={res.total18} money={m.total18} nA={players[a].name} nB={players[b].name}/>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--border)', fontWeight: 700 }}>
               <span style={{ fontSize: 13, color: 'var(--cream)', letterSpacing: '0.3px' }}>Saldo</span>
               <span className={m.grand > 0 ? 'pos' : m.grand < 0 ? 'neg' : 'neu'}
@@ -1247,6 +1248,7 @@ function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, t
           </div>
           <ResultDetailRow label="Front 9" seg={teamResult.front} money={teamMoney.front} nA={tLA} nB={tLB} unit={betValues.frontVal}/>
           <ResultDetailRow label="Back 9"  seg={teamResult.back}  money={teamMoney.back}  nA={tLA} nB={tLB} unit={betValues.backVal}/>
+          <Total18Row score={teamResult.total18} money={teamMoney.total18} nA={tLA} nB={tLB}/>
           <div className="seg-row" style={{ fontWeight: 700, color: 'var(--cream)' }}>
             <span>Saldo</span>
             <span className={teamMoney.grand > 0 ? 'pos' : teamMoney.grand < 0 ? 'neg' : 'neu'}>
@@ -1259,13 +1261,27 @@ function NassauResults({ pairs, players, indivResults, indivMoney, teamResult, t
   )
 }
 
+// Total 18 no resumo — sem press, vale o placar somado dos 18 buracos.
+function Total18Row({ score, money, nA, nB }) {
+  const w = score > 0 ? nA : score < 0 ? nB : null
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 10, color: 'var(--muted2)', marginBottom: 4, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Total 18</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted2)', paddingLeft: 8, marginBottom: 2 }}>
+        <span>Placar: <strong style={{ color: score > 0 ? '#7ab5f0' : score < 0 ? '#f07a7a' : 'var(--muted)' }}>{score === 0 ? 'AS' : `${w} +${Math.abs(score)}`}</strong></span>
+        <span className={money > 0 ? 'pos' : money < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 700 }}>{money > 0 ? '+' : ''}R${Math.abs(money)}</span>
+      </div>
+    </div>
+  )
+}
+
 function ResultDetailRow({ label, seg, money, nA, nB, unit }) {
   const w = seg.mainScore > 0 ? nA : seg.mainScore < 0 ? nB : null
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 10, color: 'var(--muted2)', marginBottom: 4, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{label}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--muted2)', paddingLeft: 8, marginBottom: 2 }}>
-        <span>Principal: <strong style={{ color: seg.mainScore > 0 ? '#7ab5f0' : seg.mainScore < 0 ? '#f07a7a' : 'var(--muted)' }}>{seg.mainScore === 0 ? 'AS' : `${w} ${seg.mainScore > 0 ? '+' : ''}${seg.mainScore}`}</strong></span>
+        <span>Principal: <strong style={{ color: seg.mainScore > 0 ? '#7ab5f0' : seg.mainScore < 0 ? '#f07a7a' : 'var(--muted)' }}>{seg.mainScore === 0 ? 'AS' : `${w} +${Math.abs(seg.mainScore)}`}</strong></span>
         <span className={money.main > 0 ? 'pos' : money.main < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 700 }}>{money.main > 0 ? '+' : ''}R${Math.abs(money.main)}</span>
       </div>
       {seg.pressScores.map((ps, i) => {
@@ -1273,7 +1289,7 @@ function ResultDetailRow({ label, seg, money, nA, nB, unit }) {
         const pMoney = Math.sign(ps) * unit
         return (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted2)', paddingLeft: 8, marginBottom: 2 }}>
-            <span>Press {i+1}: <strong style={{ color: ps > 0 ? '#7ab5f0' : ps < 0 ? '#f07a7a' : 'var(--muted)' }}>{ps === 0 ? 'AS' : `${pw} ${ps > 0 ? '+' : ''}${ps}`}</strong></span>
+            <span>Press {i+1}: <strong style={{ color: ps > 0 ? '#7ab5f0' : ps < 0 ? '#f07a7a' : 'var(--muted)' }}>{ps === 0 ? 'AS' : `${pw} +${Math.abs(ps)}`}</strong></span>
             <span className={pMoney > 0 ? 'pos' : pMoney < 0 ? 'neg' : 'neu'} style={{ fontFamily: 'var(--serif)', fontWeight: 700 }}>{pMoney > 0 ? '+' : ''}R${Math.abs(pMoney)}</span>
           </div>
         )
@@ -1290,10 +1306,10 @@ function SkinsResults({ players, result, betUnit }) {
         <div key={pi} className="seg-row">
           <div>
             <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{p.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{result.skins[pi]} skin{result.skins[pi] !== 1 ? 's' : ''} × R${betUnit}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{result.skins[pi]} skin{result.skins[pi] !== 1 ? 's' : ''} · R${betUnit} de cada adversário</div>
           </div>
-          <span className={result.money[pi] > 0 ? 'pos' : 'neu'} style={{ fontWeight: 700, fontSize: 16 }}>
-            +R$ {result.money[pi]}
+          <span className={result.money[pi] > 0 ? 'pos' : result.money[pi] < 0 ? 'neg' : 'neu'} style={{ fontWeight: 700, fontSize: 16 }}>
+            {result.money[pi] > 0 ? '+' : result.money[pi] < 0 ? '−' : ''}R$ {Math.abs(result.money[pi])}
           </span>
         </div>
       ))}
@@ -1342,7 +1358,7 @@ function MedalResults({ players, result, betValues, title = 'Resultado Medal' })
         return (
           <div key={seg.key} style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--muted)', marginBottom: 6 }}>
-              {seg.label} · R${seg.val}
+              {seg.label} · R$ {seg.val} por jogador · pote R$ {seg.val * players.length}
             </div>
             {players.map((p, pi) => (
               <div key={pi} className="seg-row">
@@ -1397,7 +1413,7 @@ function SindicatoResults({ players, result, betValues, par }) {
               <div>
                 <div style={{ fontWeight: 600, color: 'var(--cream)' }}>{o.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                  {fmtPts(o.pts)} pts · leva {fmtPts(share)}% (R$ {fmtBRL(pot * share / 100)})
+                  {fmtPts(o.pts)} pts · leva {fmtPts(share)}% = R$ {fmtBRL(pot * share / 100)} − entrou R$ {fmtBRL(result.ante)}
                 </div>
               </div>
             </div>
@@ -1452,6 +1468,9 @@ function StablefordResults({ players, result, betUnit }) {
   return (
     <div className="card">
       <h2>Resultado Stableford</h2>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+        Cada dupla acerta a diferença de pontos × R${betUnit}.
+      </div>
       {sorted.map((p, rank) => (
         <div key={p.i} className="seg-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1461,8 +1480,8 @@ function StablefordResults({ players, result, betUnit }) {
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.pts} pontos</div>
             </div>
           </div>
-          <span className={result.winners.includes(p.i) ? 'pos' : 'neg'} style={{ fontWeight: 700, fontSize: 14 }}>
-            {result.winners.includes(p.i) ? `+R$ ${result.money[p.i]}` : '–'}
+          <span className={result.money[p.i] > 0 ? 'pos' : result.money[p.i] < 0 ? 'neg' : 'neu'} style={{ fontWeight: 700, fontSize: 14 }}>
+            {result.money[p.i] > 0 ? '+' : result.money[p.i] < 0 ? '−' : ''}R$ {Math.abs(result.money[p.i])}
           </span>
         </div>
       ))}
