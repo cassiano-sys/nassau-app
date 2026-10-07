@@ -111,8 +111,28 @@ export default function SetupScreen({ onStart, onBack, session }) {
   // que não são amigos. O handicap do amigo vem do último uso salvo, se houver.
   const savedByName = Object.fromEntries(savedPlayers.map(s => [s.name.trim().toLowerCase(), s]))
   const friendNames = new Set(friends.map(f => f.nickname.trim().toLowerCase()))
+  // Dois amigos (ou você e um amigo) com o mesmo apelido: a lista mostra o
+  // nome completo ao lado, e no cartão entra "Apelido + inicial" pra não
+  // ficarem dois jogadores com nome igual na mesma rodada.
+  const nickCount = {}
+  for (const n of [myNickname(session?.user), ...friends.map(f => f.nickname)]) {
+    const k = (n || '').trim().toLowerCase(); if (k) nickCount[k] = (nickCount[k] || 0) + 1
+  }
+  const disambig = (f) => {
+    const parts = (f.fullName || '').trim().split(/\s+/).filter(Boolean)
+    if (parts.length < 2) return f.nickname
+    const ini = parts[parts.length - 1][0].toUpperCase() + '.'
+    return f.nickname.trim().endsWith(ini) ? f.nickname : `${f.nickname.trim()} ${ini}`
+  }
   const suggestions = [
-    ...friends.map(f => ({ name: f.nickname, userId: f.id, friend: true, handicap: savedByName[f.nickname.trim().toLowerCase()]?.handicap ?? null })),
+    ...friends.map(f => {
+      const clash = nickCount[f.nickname.trim().toLowerCase()] > 1
+      return {
+        name: f.nickname, userId: f.id, friend: true,
+        detail: clash ? (f.fullName || '') : '', cardName: clash ? disambig(f) : f.nickname,
+        handicap: savedByName[f.nickname.trim().toLowerCase()]?.handicap ?? null,
+      }
+    }),
     ...savedPlayers.filter(s => !friendNames.has(s.name.trim().toLowerCase())),
   ]
   // Digitar à mão desfaz o vínculo (só o Jogador 1, que é você, continua vinculado)
@@ -120,7 +140,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
     setPlayers(prev => prev.map((p, pi) => pi === i ? { ...p, name: v, userId: i === 0 ? p.userId : null } : p))
   const pickName = (i, s) =>
     setPlayers(prev => prev.map((p, pi) => pi === i ? {
-      ...p, name: s.name, userId: i === 0 ? p.userId : (s.userId || null),
+      ...p, name: s.cardName || s.name, userId: i === 0 ? p.userId : (s.userId || null),
       handicap: s.handicap !== null && s.handicap !== undefined ? Number(s.handicap) : p.handicap,
     } : p))
 
@@ -187,7 +207,9 @@ export default function SetupScreen({ onStart, onBack, session }) {
       [numPlayers]: prev[numPlayers].map((x, i) => i === pos ? Number(v) : x),
     }))
 
-  const canStart = players.slice(0, numPlayers).every(p => p.name.trim()) && sindValid
+  const activeNames = players.slice(0, numPlayers).map(p => p.name.trim().toLowerCase()).filter(Boolean)
+  const dupName = activeNames.find((n, i) => activeNames.indexOf(n) !== i)
+  const canStart = players.slice(0, numPlayers).every(p => p.name.trim()) && sindValid && !dupName
 
   const handleStart = () => {
     // Salva/atualiza os jogadores desta rodada como parceiros, pra sugerir
@@ -650,6 +672,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
           )}
         </div>
 
+        {dupName && (
+          <p style={{ fontSize: 12, color: 'var(--red, #e05555)', margin: '0 0 10px', lineHeight: 1.5 }}>
+            ⚠️ Dois jogadores com o mesmo nome. Diferencie com a inicial do sobrenome (ex.: "Alexandre G.").
+          </p>
+        )}
         <button className="btn-primary" onClick={handleStart} disabled={!canStart}>
           Iniciar Rodada →
         </button>
@@ -727,7 +754,9 @@ function PlayerNameField({ style, placeholder, value, suggestions, onChange, onP
 
   const q = value.trim().toLowerCase()
   const filtered = (suggestions || [])
-    .filter(s => s.name.toLowerCase() !== q)
+    // Esconde o nome já escolhido — mas, sem vínculo, mantém os amigos com
+    // esse apelido visíveis (pode haver dois "Alexandre" pra escolher)
+    .filter(s => s.name.toLowerCase() !== q || (s.friend && !linked))
     .filter(s => !q || s.name.toLowerCase().includes(q))
     .slice(0, 6)
 
@@ -758,7 +787,7 @@ function PlayerNameField({ style, placeholder, value, suggestions, onChange, onP
                 padding: '9px 12px', fontSize: 13, color: 'var(--cream)', cursor: 'pointer',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
-              <span>{s.name}{s.friend && <span style={{ color: 'var(--green2, #5dba7a)', fontWeight: 700 }}> ✓ amigo</span>}</span>
+              <span>{s.name}{s.friend && <span style={{ color: 'var(--green2, #5dba7a)', fontWeight: 700 }}> ✓{s.detail ? '' : ' amigo'}</span>}{s.detail && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted2)' }}>{s.detail}</span>}</span>
               <span style={{ fontSize: 10, color: 'var(--muted2)' }}>{s.handicap !== null && s.handicap !== undefined ? `HCP ${s.handicap}` : ''}</span>
             </div>
           ))}

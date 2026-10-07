@@ -1,6 +1,40 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { loadDraft, clearDraft, draftSummary } from '../lib/draft'
+import { fmtSigned } from '../lib/money'
+import { needsNickname, suggestNickname, syncProfile } from '../lib/friends'
+
+// Contas antigas (de antes do apelido ser obrigatório): pede uma vez, já
+// sugerindo "Nome + inicial", pra não ficarem dois "Alexandre" iguais.
+function NicknameCard({ session }) {
+  const user = session?.user
+  const [val, setVal] = useState(() => suggestNickname(user?.user_metadata?.full_name || ''))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [done, setDone] = useState(false)
+  if (done || !needsNickname(user)) return null
+  const save = async () => {
+    setSaving(true); setErr('')
+    const { data, error } = await supabase.auth.updateUser({ data: { nickname: val.trim() } })
+    setSaving(false)
+    if (error) return setErr('Não deu pra salvar agora. Tente de novo.')
+    if (data?.user) syncProfile(data.user)
+    setDone(true)
+  }
+  return (
+    <div className="card" style={{ borderColor: 'var(--gold)', marginBottom: 12 }}>
+      <div style={{ fontSize: 14, color: 'var(--cream)', fontWeight: 600, marginBottom: 4 }}>Como você aparece no cartão?</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
+        Seus amigos te encontram por esse nome. Use nome + inicial do sobrenome pra não confundir com outro de mesmo nome.
+      </div>
+      <input className="text-input" value={val} maxLength={24} placeholder="Ex.: Paulo S." onChange={e => setVal(e.target.value)} style={{ marginBottom: 8 }}/>
+      <button type="button" className="btn-primary" disabled={saving || !val.trim()} onClick={save} style={{ marginBottom: 0 }}>
+        {saving ? '...' : 'Salvar'}
+      </button>
+      {err && <div style={{ fontSize: 12, color: 'var(--red, #e07a7a)', marginTop: 6 }}>{err}</div>}
+    </div>
+  )
+}
 
 function firstNameLower(fullName) {
   if (!fullName) return ''
@@ -23,22 +57,23 @@ export default function HomeScreen({ nav, session, onResume, notice, onDismissNo
 
   const loadData = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('rounds')
-      .select('id, played_at, course_name, round_players(*)')
-      .order('played_at', { ascending: false })
-      .limit(20)
+    // Saldo/jogos/vitórias somam TODAS as rodadas (antes só as 20 mais recentes);
+    // a lista "Últimas rodadas" continua com as 3 mais novas.
+    const [{ data }, { data: recentData }] = await Promise.all([
+      supabase.from('rounds').select('id, round_players(player_name,player_user_id,money_result)'),
+      supabase.from('rounds').select('id, played_at, course_name, round_players(*)')
+        .order('played_at', { ascending: false }).limit(3),
+    ])
 
     if (data) {
       let total = 0, jogos = 0, wins = 0
-      const recent = []
+      const recent = recentData || []
       data.forEach(r => {
         // "Eu" na rodada: pelo vínculo da conta; nas rodadas antigas (sem
         // vínculo), pelo primeiro nome / apelido, como antes.
         const mine = r.round_players?.find(p => p.player_user_id === session?.user?.id)
           || r.round_players?.find(p => !p.player_user_id && (firstNameLower(p.player_name) === firstName || (nick && p.player_name?.trim().toLowerCase() === nick)))
         if (mine) { total += mine.money_result || 0; jogos++; if (mine.money_result > 0) wins++ }
-        if (recent.length < 3) recent.push(r)
       })
       setStats({ total, jogos, wins })
       setRounds(recent)
@@ -47,7 +82,7 @@ export default function HomeScreen({ nav, session, onResume, notice, onDismissNo
   }
 
   const fmtDate = iso => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-  const fmtMoney = v => !v ? 'R$ 0' : `${v > 0 ? '+' : ''}R$ ${Math.abs(v)}`
+  const fmtMoney = v => fmtSigned(v)
 
   return (
     <div className="screen">
@@ -90,9 +125,21 @@ export default function HomeScreen({ nav, session, onResume, notice, onDismissNo
           </div>
         )}
 
+        <NicknameCard session={session}/>
+
         {notice && (
           <div className="card" style={{ borderColor: 'var(--green2, #5dba7a)', marginBottom: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ flex: 1, fontSize: 13, color: 'var(--cream)', lineHeight: 1.5 }}>{notice}</div>
+            <div style={{ flex: 1, fontSize: 13, color: 'var(--cream)', lineHeight: 1.5 }}>
+              {typeof notice === 'string' ? notice : notice.text}
+              {notice.retry && (
+                <button type="button" className="btn-secondary" onClick={notice.retry} style={{ marginTop: 8, marginBottom: 0, padding: '8px' }}>
+                  Tentar de novo
+                </button>
+              )}
+              {notice.detail && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 6, wordBreak: 'break-word' }}>Detalhe: {notice.detail}</div>
+              )}
+            </div>
             <button type="button" onClick={onDismissNotice} aria-label="Fechar aviso"
               style={{ background: 'none', border: 'none', color: 'var(--muted2)', fontSize: 16, cursor: 'pointer' }}>✕</button>
           </div>

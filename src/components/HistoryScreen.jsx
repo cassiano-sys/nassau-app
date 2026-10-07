@@ -4,6 +4,7 @@ import { resizeImageToBase64 } from '../lib/image'
 import PixSettlement, { PixKeyForm } from './PixSettlement'
 import ScorecardScreen from './ScorecardScreen'
 import { COURSES } from '../lib/golf'
+import { fmtSigned, fmtAbs } from '../lib/money'
 
 // Remonta a configuração de uma rodada salva pra abrir o Resumo dela.
 // Rodadas novas trazem um "snapshot" completo; nas antigas, o que falta
@@ -65,6 +66,7 @@ export function RankingScreen({ onBack, session }) {
   const [players,    setPlayers]    = useState([])
   const [matchups,   setMatchups]   = useState([])
   const [roundDates, setRoundDates] = useState({}) // round_id -> played_at (Date)
+  const [legacyRounds, setLegacyRounds] = useState({}) // round_id -> true se é rodada antiga (regra do nome)
   const [loading,    setLoading]    = useState(true)
   const [tab,        setTab]        = useState('global')
   const [h2hSearch,  setH2hSearch]  = useState('')
@@ -75,15 +77,16 @@ export function RankingScreen({ onBack, session }) {
   const loadData = async () => {
     setLoading(true)
     const [{ data: pData }, { data: mData }, { data: rData }] = await Promise.all([
-      supabase.from('round_players').select('player_name, money_result, handicap, team, round_id'),
+      supabase.from('round_players').select('player_name, player_user_id, money_result, handicap, team, round_id'),
       supabase.from('round_matchups').select('*'),
-      supabase.from('rounds').select('id, played_at'),
+      supabase.from('rounds').select('id, played_at, linked_rules'),
     ])
     setPlayers(pData || [])
     setMatchups(mData || [])
-    const dates = {}
-    ;(rData || []).forEach(r => { dates[r.id] = new Date(r.played_at) })
+    const dates = {}, legacy = {}
+    ;(rData || []).forEach(r => { dates[r.id] = new Date(r.played_at); legacy[r.id] = !r.linked_rules })
     setRoundDates(dates)
+    setLegacyRounds(legacy)
     setLoading(false)
   }
 
@@ -103,14 +106,46 @@ export function RankingScreen({ onBack, session }) {
   }
 
   const myFirstName = firstNameLower(session?.user?.user_metadata?.full_name || '')
+  const myId = session?.user?.id ? 'u:' + session.user.id : null
 
-  // Ranking geral — agrupa por primeiro nome
+  // Identidade de cada jogador: quem tem conta vinculada é somado pela CONTA
+  // (dois "Alexandre" diferentes não se misturam). Sem conta, pelo primeiro
+  // nome. Nas rodadas antigas (antes do vínculo), o nome cai na conta quando
+  // só uma conta usa esse primeiro nome — assim o histórico não se divide.
+  const ident = useMemo(() => {
+    const byRow = {}, nameToUids = {}, latest = {}
+    ;(players || []).forEach(p => {
+      const u = p.player_user_id
+      if (!u) return
+      byRow[p.round_id + '|' + p.player_name] = u
+      const k = firstNameLower(p.player_name)
+      ;(nameToUids[k] ||= new Set()).add(u)
+      const t = roundDates[p.round_id]?.getTime() || 0
+      if (!latest[u] || t >= latest[u].t) latest[u] = { name: p.player_name, hcp: p.handicap, t }
+    })
+    const resolve = (roundId, name) => {
+      const u = byRow[roundId + '|' + name]
+      if (u) return 'u:' + u
+      const k = firstNameLower(name)
+      const set = nameToUids[k]
+      if (legacyRounds[roundId] && set && set.size === 1) return 'u:' + [...set][0]
+      return 'n:' + k
+    }
+    const label = (id, fallback) => id.startsWith('u:') ? (latest[id.slice(2)]?.name || fallback) : fallback
+    const hcpOf = (id, fallback) => id.startsWith('u:') ? (latest[id.slice(2)]?.hcp ?? fallback) : fallback
+    return { resolve, label, hcpOf }
+  }, [players, roundDates, legacyRounds])
+
+  // Sou eu? Pela conta; sem nenhuma rodada vinculada, pelo primeiro nome.
+  const isMeId = (id) => id === myId || (!!myFirstName && id === 'n:' + myFirstName)
+
+  // Ranking geral — por conta (vinculados) ou por primeiro nome
   const ranking = useMemo(() => {
     const map = {}
     ;(players || []).forEach(p => {
-      const key = firstNameLower(p.player_name)
-      if (!key) return
-      if (!map[key]) map[key] = { name: p.player_name, total: 0, jogos: new Set(), wins: 0, hcp: p.handicap }
+      if (!firstNameLower(p.player_name) && !p.player_user_id) return
+      const key = ident.resolve(p.round_id, p.player_name)
+      if (!map[key]) map[key] = { id: key, name: p.player_name, total: 0, jogos: new Set(), wins: 0, hcp: p.handicap }
       map[key].total += p.money_result || 0
       map[key].jogos.add(p.round_id)
       if (p.money_result > 0) map[key].wins++
@@ -121,68 +156,55 @@ export function RankingScreen({ onBack, session }) {
       }
     })
     return Object.values(map)
-      .map(p => ({ ...p, jogos: p.jogos.size }))
+      .map(p => ({ ...p, name: ident.label(p.id, p.name), hcp: ident.hcpOf(p.id, p.hcp), jogos: p.jogos.size }))
       .sort((a, b) => b.total - a.total)
-  }, [players])
+  }, [players, ident])
 
-  // H2H correto — usa round_matchups (confrontos individuais salvos separadamente)
+  // H2H — usa round_matchups (confrontos individuais salvos separadamente).
+  // Cada lado é identificado pela conta quando vinculado (ver ident).
   const h2h = useMemo(() => {
-    // Usa matchups se disponíveis, senão fallback para cálculo por team
-    if (matchups.length > 0) {
-      const map = {}
-      matchups.filter(m => m.type === 'individual' && inPeriod(m.round_id)).forEach(m => {
-        const keyA = firstNameLower(m.player_a)
-        const keyB = firstNameLower(m.player_b)
-        const key  = [keyA, keyB].sort().join('|||')
-        if (!map[key]) map[key] = { nameA: m.player_a, nameB: m.player_b, balance: 0, jogos: 0 }
-        // result_a = quanto A ganhou de B neste confronto
-        // O sinal salvo deve ser relativo a nameA (fixado no primeiro confronto registrado),
-        // não à ordem alfabética de keyA/keyB do confronto atual
-        const sameOrder = firstNameLower(map[key].nameA) === keyA
-        map[key].balance += (sameOrder ? m.result_a : -m.result_a)
-        map[key].jogos++
-      })
-      return Object.values(map).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
-    }
-
-    // Fallback: calcula por team (rodadas antigas sem matchups)
-    const byRound = {}
-    ;(players || []).forEach(p => {
-      if (!inPeriod(p.round_id)) return
-      if (!byRound[p.round_id]) byRound[p.round_id] = []
-      byRound[p.round_id].push(p)
-    })
     const map = {}
-    Object.values(byRound).forEach(rPlayers => {
-      const teamA = rPlayers.filter(p => p.team === 'A')
-      const teamB = rPlayers.filter(p => p.team === 'B')
-      teamA.forEach(pA => {
-        teamB.forEach(pB => {
-          const keyA = firstNameLower(pA.player_name)
-          const keyB = firstNameLower(pB.player_name)
-          const key  = [keyA, keyB].sort().join('|||')
-          if (!map[key]) map[key] = { nameA: pA.player_name, nameB: pB.player_name, balance: 0, jogos: 0 }
-          const diff = (pA.money_result || 0) - (pB.money_result || 0)
-          // Sinal relativo a nameA (fixado no primeiro confronto registrado)
-          const sameOrder = firstNameLower(map[key].nameA) === keyA
-          map[key].balance += (sameOrder ? diff : -diff)
-          map[key].jogos++
-        })
+    const add = (roundId, nA, nB, valA) => {
+      const idA = ident.resolve(roundId, nA), idB = ident.resolve(roundId, nB)
+      if (idA === idB) return
+      const key = [idA, idB].sort().join('|||')
+      if (!map[key]) map[key] = { idA, idB, nameA: nA, nameB: nB, balance: 0, jogos: 0, winA: 0, winB: 0, ties: 0 }
+      // Saldo sempre relativo ao lado A fixado no primeiro confronto
+      const v = map[key].idA === idA ? valA : -valA
+      map[key].balance += v
+      map[key].jogos++
+      if (v > 0) map[key].winA++; else if (v < 0) map[key].winB++; else map[key].ties++
+    }
+    if (matchups.length > 0) {
+      matchups.filter(m => m.type === 'individual' && inPeriod(m.round_id))
+        .forEach(m => add(m.round_id, m.player_a, m.player_b, m.result_a))
+    } else {
+      // Fallback: calcula por team (rodadas antigas sem matchups)
+      const byRound = {}
+      ;(players || []).forEach(p => {
+        if (!inPeriod(p.round_id)) return
+        ;(byRound[p.round_id] ||= []).push(p)
       })
-    })
-    return Object.values(map).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
-  }, [matchups, players, roundDates, h2hSince])
+      Object.values(byRound).forEach(rPlayers => {
+        const teamA = rPlayers.filter(p => p.team === 'A')
+        const teamB = rPlayers.filter(p => p.team === 'B')
+        teamA.forEach(pA => teamB.forEach(pB =>
+          add(pA.round_id, pA.player_name, pB.player_name, (pA.money_result || 0) - (pB.money_result || 0))))
+      })
+    }
+    return Object.values(map)
+      .map(h => ({ ...h, nameA: ident.label(h.idA, h.nameA), nameB: ident.label(h.idB, h.nameB) }))
+      .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
+  }, [matchups, players, roundDates, h2hSince, ident])
 
-  const fmt = (v) => `${v > 0 ? '+' : ''}R$ ${v}`
+  const fmt = (v) => fmtSigned(v)
 
   // H2H é pessoal: só confrontos que incluem o usuário logado.
   // Sem nome de perfil definido, mostra tudo (fallback) em vez de esconder tudo.
   const h2hMine = useMemo(() => {
-    if (!myFirstName) return h2h
-    return h2h.filter(h =>
-      firstNameLower(h.nameA) === myFirstName || firstNameLower(h.nameB) === myFirstName
-    )
-  }, [h2h, myFirstName])
+    if (!myId && !myFirstName) return h2h
+    return h2h.filter(h => isMeId(h.idA) || isMeId(h.idB))
+  }, [h2h, myId, myFirstName])
 
   const h2hFiltered = useMemo(() => {
     const q = h2hSearch.trim().toLowerCase()
@@ -196,10 +218,10 @@ export function RankingScreen({ onBack, session }) {
   // respeita o período selecionado e, se houver busca, o(s) adversário(s) filtrado(s).
   const h2hTotal = useMemo(() => {
     return h2hFiltered.reduce((acc, h) => {
-      const mine = !myFirstName || firstNameLower(h.nameA) === myFirstName ? h.balance : -h.balance
+      const mine = isMeId(h.idA) || (!myId && !myFirstName) ? h.balance : -h.balance
       return { valor: acc.valor + mine, jogos: acc.jogos + h.jogos }
     }, { valor: 0, jogos: 0 })
-  }, [h2hFiltered, myFirstName])
+  }, [h2hFiltered, myId, myFirstName])
 
   return (
     <div className="screen">
@@ -222,7 +244,7 @@ export function RankingScreen({ onBack, session }) {
             {ranking.length === 0 ? (
               <div className="empty-state"><div className="icon">🏆</div><p>Nenhuma rodada ainda.</p></div>
             ) : ranking.map((p, i) => (
-              <div key={p.name} className={`rank-row${i === 0 ? ' leader' : ''}`}>
+              <div key={p.id} className={`rank-row${i === 0 ? ' leader' : ''}`}>
                 <span className="rank-num">{i===0?'🏆':i===1?'🥈':i===2?'🥉':`${i+1}º`}</span>
                 <div style={{ flex: 1 }}>
                   <div className="rank-name">{p.name}</div>
@@ -282,7 +304,11 @@ export function RankingScreen({ onBack, session }) {
             ) : h2hFiltered.map((h, i) => {
               const winner = h.balance > 0 ? h.nameA : h.balance < 0 ? h.nameB : null
               const loser  = h.balance > 0 ? h.nameB : h.balance < 0 ? h.nameA : null
-              const amt    = Math.abs(h.balance)
+              const amt    = fmtAbs(h.balance)
+              // Retrospecto do ponto de vista de quem está olhando
+              const meA  = isMeId(h.idA) || !isMeId(h.idB)
+              const vit  = meA ? h.winA : h.winB
+              const der  = meA ? h.winB : h.winA
               return (
                 <div key={i} className="card" style={{ marginBottom: 8, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -291,14 +317,14 @@ export function RankingScreen({ onBack, session }) {
                         {h.nameA} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>vs</span> {h.nameB}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                        {h.jogos} confronto{h.jogos!==1?'s':''}
+                        {h.jogos} confronto{h.jogos!==1?'s':''} · {vit} vitória{vit!==1?'s':''} · {der} derrota{der!==1?'s':''}{h.ties ? ` · ${h.ties} empate${h.ties!==1?'s':''}` : ''}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       {winner ? (
                         <>
                           <div className="pos" style={{ fontWeight: 700, fontSize: 14 }}>{winner} +R$ {amt}</div>
-                          <div className="neg" style={{ fontSize: 11 }}>{loser} -R$ {amt}</div>
+                          <div className="neg" style={{ fontSize: 11 }}>{loser} −R$ {amt}</div>
                         </>
                       ) : <div className="neu">Empatado</div>}
                     </div>
@@ -323,24 +349,29 @@ export function HistoryScreen({ onBack, session }) {
 
   const firstName = firstNameLower(session?.user?.user_metadata?.full_name || '')
 
-  useEffect(() => { loadRounds() }, [filter])
+  // Lista paginada (50 por vez, "Mostrar mais"); os números do topo somam
+  // TODAS as rodadas do filtro, não só as que estão carregadas na lista.
+  const PAGE = 50
+  const [pageLimit, setPageLimit] = useState(PAGE)
+  const [allMine,   setAllMine]   = useState([])
+  useEffect(() => { setPageLimit(PAGE) }, [filter])
+  useEffect(() => { loadRounds() }, [filter, pageLimit])
+
+  const sinceOf = () => {
+    if (filter === 'month') { const from = new Date(); from.setDate(1); from.setHours(0,0,0,0); return from.toISOString() }
+    if (filter === 'year')  return new Date(new Date().getFullYear(), 0, 1).toISOString()
+    return null
+  }
 
   const loadRounds = async () => {
     setLoading(true)
-    let query = supabase
-      .from('rounds')
-      .select('*, round_players(*)')
-      .order('played_at', { ascending: false })
-
-    if (filter === 'month') {
-      const from = new Date(); from.setDate(1); from.setHours(0,0,0,0)
-      query = query.gte('played_at', from.toISOString())
-    } else if (filter === 'year') {
-      query = query.gte('played_at', new Date(new Date().getFullYear(), 0, 1).toISOString())
-    }
-
-    const { data } = await query.limit(50)
+    const since = sinceOf()
+    let query = supabase.from('rounds').select('*, round_players(*)').order('played_at', { ascending: false })
+    let statsQ = supabase.from('rounds').select('id, round_players(player_name,player_user_id,money_result)')
+    if (since) { query = query.gte('played_at', since); statsQ = statsQ.gte('played_at', since) }
+    const [{ data }, { data: all }] = await Promise.all([query.limit(pageLimit), statsQ])
     setRounds(data || [])
+    setAllMine(all || [])
     setLoading(false)
   }
 
@@ -353,7 +384,7 @@ export function HistoryScreen({ onBack, session }) {
 
   const myStats = useMemo(() => {
     let total = 0, wins = 0, jogos = 0
-    rounds.forEach(r => {
+    allMine.forEach(r => {
       const mine = r.round_players?.find(p => isMe(p))
       if (mine) {
         total += mine.money_result || 0
@@ -362,10 +393,10 @@ export function HistoryScreen({ onBack, session }) {
       }
     })
     return { total, wins, jogos }
-  }, [rounds, firstName])
+  }, [allMine, firstName])
 
   const fmtDate = iso => new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
-  const fmtMoney = (v) => !v ? 'R$ 0' : `${v > 0 ? '+' : ''}R$ ${Math.abs(v)}`
+  const fmtMoney = (v) => fmtSigned(v)
 
   const openRound = async (r) => {
     setOpening(r.id)
@@ -486,6 +517,11 @@ export function HistoryScreen({ onBack, session }) {
             )}
           </div>
         ))}
+        {!loading && rounds.length === pageLimit && (
+          <button className="btn-secondary" onClick={() => setPageLimit(n => n + PAGE)} style={{ marginTop: 6 }}>
+            Mostrar mais rodadas
+          </button>
+        )}
       </div>
     </div>
   )
@@ -600,7 +636,7 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
           {saved ? (
             <div style={{ textAlign:'center', color:'var(--green2)', fontWeight:600, padding:10 }}>✅ Salvo!</div>
           ) : (
-            <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            <button className="btn-primary" onClick={handleSave} disabled={saving || !nickname.trim()}>
               {saving ? 'Salvando...' : 'Salvar'}
             </button>
           )}

@@ -1,3 +1,4 @@
+import { fmtSigned } from '../lib/money'
 import { useState, useEffect } from 'react'
 
 export default function PresentationScreen({ onBack }) {
@@ -22,7 +23,7 @@ export default function PresentationScreen({ onBack }) {
 
   const current_player = sorted[current]
   const isLast = current >= sorted.length - 1
-  const fmtMoney = v => `${v > 0 ? '+' : ''}R$${Math.abs(v)}`
+  const fmtMoney = v => fmtSigned(v, '').replace('−', '')
 
   const handleNext = () => {
     if (isLast) { onBack(); return }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { pendingInvite, inviteInfo } from '../lib/friends'
+import { pendingInvite, inviteInfo, suggestNickname } from '../lib/friends'
 import { supabase } from '../lib/supabase'
 
 // Versão dos Termos de Uso / Política de Privacidade vigente no momento do
@@ -29,6 +29,7 @@ export default function AuthScreen({ onAuth }) {
   const [invitedBy, setInvitedBy] = useState(null)
   const [mode, setMode]       = useState(() => pendingInvite() ? 'signup' : 'login') // login | signup | forgot
   const [nickname, setNickname] = useState('')
+  const [nickTouched, setNickTouched] = useState(false)
   const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
   const [name, setName]       = useState('')
@@ -51,7 +52,7 @@ export default function AuthScreen({ onAuth }) {
         email, password,
         options: { data: {
           full_name: name,
-          nickname: (nickname.trim() || name.trim().split(' ')[0] || ''),
+          nickname: nickname.trim(),
           terms_version: TERMS_VERSION,
           terms_accepted_at: new Date().toISOString(),
         } }
@@ -157,13 +158,16 @@ export default function AuthScreen({ onAuth }) {
       {mode === 'signup' && (
         <div style={{ marginBottom: 10 }}>
           <div className="field-label">Nome completo</div>
-          <input className="text-input" placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 0 }}/>
+          <input className="text-input" placeholder="Seu nome e sobrenome" value={name} onChange={e => { setName(e.target.value); if (!nickTouched) setNickname(suggestNickname(e.target.value)) }} style={{ marginBottom: 0 }}/>
         </div>
       )}
       {mode === 'signup' && (
         <div style={{ marginBottom: 10 }}>
           <div className="field-label">Como você aparece no cartão</div>
-          <input className="text-input" placeholder="Apelido ou nome + sobrenome (ex.: Paulo S.)" value={nickname} onChange={e => setNickname(e.target.value)} style={{ marginBottom: 0 }}/>
+          <input className="text-input" placeholder="Ex.: Paulo S." value={nickname} maxLength={24} onChange={e => { setNickname(e.target.value); setNickTouched(true) }} style={{ marginBottom: 0 }}/>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+            Obrigatório. Use nome + inicial do sobrenome pra não confundir com outro amigo de mesmo nome.
+          </div>
         </div>
       )}
 
@@ -190,7 +194,7 @@ export default function AuthScreen({ onAuth }) {
         </p>
       )}
 
-      <button className="btn-primary" onClick={handleEmail} disabled={loading || !email || !password}>
+      <button className="btn-primary" onClick={handleEmail} disabled={loading || !email || !password || (mode === 'signup' && (!name.trim() || !nickname.trim()))}>
         {loading ? '...' : mode === 'login' ? (invitedBy ? 'Entrar e aceitar convite' : 'Entrar') : (invitedBy ? 'Criar conta e aceitar' : 'Criar conta')}
       </button>
 
