@@ -9,6 +9,7 @@ import PresentationScreen  from './components/PresentationScreen'
 import { HistoryScreen, RankingScreen, ProfileScreen } from './components/HistoryScreen'
 import BugReportButton     from './components/BugReportButton'
 import { loadDraft }       from './lib/draft'
+import './lib/install' // captura o convite de instalação do Android o quanto antes
 import { captureInviteFromUrl, pendingInvite, clearPendingInvite, acceptInvite, syncProfile } from './lib/friends'
 
 // Link de convite (?convite=CODE): guarda no aparelho antes de qualquer coisa,

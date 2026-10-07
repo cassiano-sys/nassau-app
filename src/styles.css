@@ -610,3 +610,11 @@ input[type="number"]:focus {
   background: rgba(201,168,76,0.06) !important;
   outline: none !important;
 }
+
+/* Celulares bem estreitos (iPhone SE de 1ª geração, 320px): o título e as
+   abas do cabeçalho não cabiam lado a lado e a aba da direita era cortada. */
+@media (max-width: 345px) {
+  .app-header { padding: 12px 10px; gap: 6px; }
+  .header-title { font-size: 16px; }
+  .view-toggle button { padding: 6px 9px; font-size: 11px; }
+}
