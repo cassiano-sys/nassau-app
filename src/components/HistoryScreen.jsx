@@ -5,6 +5,7 @@ import PixSettlement, { PixKeyForm } from './PixSettlement'
 import ScorecardScreen from './ScorecardScreen'
 import { COURSES } from '../lib/golf'
 import { fmtSigned, fmtAbs } from '../lib/money'
+import { fetchAll } from '../lib/fetchAll'
 
 // Remonta a configuração de uma rodada salva pra abrir o Resumo dela.
 // Rodadas novas trazem um "snapshot" completo; nas antigas, o que falta
@@ -77,9 +78,9 @@ export function RankingScreen({ onBack, session }) {
   const loadData = async () => {
     setLoading(true)
     const [{ data: pData }, { data: mData }, { data: rData }] = await Promise.all([
-      supabase.from('round_players').select('player_name, player_user_id, money_result, handicap, team, round_id'),
-      supabase.from('round_matchups').select('*'),
-      supabase.from('rounds').select('id, played_at, linked_rules'),
+      fetchAll(() => supabase.from('round_players').select('player_name, player_user_id, money_result, handicap, team, round_id').order('id')),
+      fetchAll(() => supabase.from('round_matchups').select('*').order('id')),
+      fetchAll(() => supabase.from('rounds').select('id, played_at, linked_rules').order('id')),
     ])
     setPlayers(pData || [])
     setMatchups(mData || [])
@@ -367,9 +368,12 @@ export function HistoryScreen({ onBack, session }) {
     setLoading(true)
     const since = sinceOf()
     let query = supabase.from('rounds').select('*, round_players(*)').order('played_at', { ascending: false })
-    let statsQ = supabase.from('rounds').select('id, round_players(player_name,player_user_id,money_result)')
-    if (since) { query = query.gte('played_at', since); statsQ = statsQ.gte('played_at', since) }
-    const [{ data }, { data: all }] = await Promise.all([query.limit(pageLimit), statsQ])
+    const statsQ = () => {
+      const q = supabase.from('rounds').select('id, round_players(player_name,player_user_id,money_result)').order('id')
+      return since ? q.gte('played_at', since) : q
+    }
+    if (since) query = query.gte('played_at', since)
+    const [{ data }, { data: all }] = await Promise.all([query.limit(pageLimit), fetchAll(statsQ)])
     setRounds(data || [])
     setAllMine(all || [])
     setLoading(false)

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { loadDraft, clearDraft, draftSummary } from '../lib/draft'
 import { fmtSigned } from '../lib/money'
+import { fetchAll } from '../lib/fetchAll'
 import { needsNickname, suggestNickname, syncProfile } from '../lib/friends'
 import { shouldShowInstall, dismissInstall, canPromptInstall, promptInstall, subscribeInstall, platform, INSTALL_GUIDE_URL } from '../lib/install'
 
@@ -90,7 +91,7 @@ export default function HomeScreen({ nav, session, onResume, notice, onDismissNo
     // Saldo/jogos/vitórias somam TODAS as rodadas (antes só as 20 mais recentes);
     // a lista "Últimas rodadas" continua com as 3 mais novas.
     const [{ data }, { data: recentData }] = await Promise.all([
-      supabase.from('rounds').select('id, round_players(player_name,player_user_id,money_result)'),
+      fetchAll(() => supabase.from('rounds').select('id, round_players(player_name,player_user_id,money_result)').order('id')),
       supabase.from('rounds').select('id, played_at, course_name, round_players(*)')
         .order('played_at', { ascending: false }).limit(3),
     ])
