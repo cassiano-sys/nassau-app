@@ -57,6 +57,22 @@ function getSupabaseUser(token) {
   })
 }
  
+// Traduz o erro técnico em uma frase para o jogador (a tela de scores abre
+// vazia logo abaixo, então dá pra seguir digitando).
+function friendlyError(msg) {
+  const m = msg.toLowerCase()
+  // Crédito da Anthropic acabou, chave inválida ou conta sem permissão
+  if (/credit|balance|billing|quota|authentication|api[_ -]?key|permission/.test(m)) {
+    return 'Leitura por foto indisponível no momento. Digite os scores abaixo.'
+  }
+  // Serviço sobrecarregado, lento ou fora do ar
+  if (/overloaded|rate_limit|timeout|econnreset|socket|529|503|502|500|api_error/.test(m)) {
+    return 'A leitura por foto não respondeu agora. Tente de novo em instantes ou digite os scores abaixo.'
+  }
+  // Resposta que não deu pra interpretar (foto ruim, cartão diferente)
+  return 'Não deu pra ler essa foto. Tente outra mais nítida ou digite os scores abaixo.'
+}
+
 export default async function handler(req, res) {
   const origin = allowedOrigin(req.headers.origin)
   if (origin) {
@@ -200,12 +216,13 @@ export default async function handler(req, res) {
     return res.status(200).json(result)
  
   } catch (e) {
+    // O detalhe técnico fica só no log da Vercel; o jogador vê uma frase simples.
     console.error('read-card error:', user.id, e.message)
     return res.status(200).json({
       scores: [],
       confidence: 'low',
       card_complete: false,
-      notes: 'Erro: ' + e.message.slice(0, 100)
+      notes: friendlyError(e.message || ''),
     })
   }
 }
