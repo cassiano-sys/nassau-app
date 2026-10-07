@@ -3,6 +3,36 @@ import { supabase } from '../lib/supabase'
 import { loadDraft, clearDraft, draftSummary } from '../lib/draft'
 import { fmtSigned } from '../lib/money'
 import { needsNickname, suggestNickname, syncProfile } from '../lib/friends'
+import { shouldShowInstall, dismissInstall, canPromptInstall, promptInstall, subscribeInstall, platform, INSTALL_GUIDE_URL } from '../lib/install'
+
+// Primeira vez pelo navegador do celular: convida a instalar na tela inicial.
+function InstallCard() {
+  const [show, setShow] = useState(shouldShowInstall)
+  const [, force] = useState(0)
+  useEffect(() => subscribeInstall(() => { force(x => x + 1); setShow(shouldShowInstall()) }), [])
+  if (!show) return null
+  const close = () => { dismissInstall(); setShow(false) }
+  const ios = platform() === 'ios'
+  return (
+    <div className="card" style={{ borderColor: 'var(--gold)', marginBottom: 12, position: 'relative' }}>
+      <button type="button" onClick={close} aria-label="Fechar"
+        style={{ position: 'absolute', top: 6, right: 8, background: 'none', border: 'none', color: 'var(--muted)', fontSize: 18, cursor: 'pointer', padding: 4 }}>×</button>
+      <div style={{ fontSize: 14, color: 'var(--cream)', fontWeight: 600, marginBottom: 4, paddingRight: 24 }}>📲 Tenha o Caddie na tela do celular</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 10 }}>
+        {ios
+          ? <>Instale em poucos segundos: no <strong>Safari</strong>, toque em Compartilhar <span aria-hidden>⬆️</span> e depois em <strong>“Adicionar à Tela de Início”</strong>.</>
+          : 'Instale em poucos segundos e abra como qualquer outro aplicativo.'}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {canPromptInstall()
+          ? <button type="button" className="btn-primary" style={{ marginBottom: 0, flex: 1 }} onClick={async () => { if (await promptInstall()) setShow(false) }}>Instalar agora</button>
+          : <a className="btn-primary" href={INSTALL_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+              style={{ marginBottom: 0, flex: 1, display: 'block', textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>Ver como instalar</a>}
+        <button type="button" className="btn-secondary" style={{ marginBottom: 0, flex: '0 0 auto', width: 'auto', padding: '0 14px' }} onClick={close}>Agora não</button>
+      </div>
+    </div>
+  )
+}
 
 // Contas antigas (de antes do apelido ser obrigatório): pede uma vez, já
 // sugerindo "Nome + inicial", pra não ficarem dois "Alexandre" iguais.
@@ -126,6 +156,7 @@ export default function HomeScreen({ nav, session, onResume, notice, onDismissNo
         )}
 
         <NicknameCard session={session}/>
+        {!needsNickname(session?.user) && <InstallCard/>}
 
         {notice && (
           <div className="card" style={{ borderColor: 'var(--green2, #5dba7a)', marginBottom: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
