@@ -12,6 +12,21 @@ export function myNickname(user) {
   return (m.nickname || (m.full_name || '').split(' ')[0] || '').trim()
 }
 
+// Sugestão de apelido sem ambiguidade: primeiro nome + inicial do último
+// sobrenome ("Alexandre Garcia" → "Alexandre G."). Só um nome → ele mesmo.
+export function suggestNickname(fullName) {
+  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return ''
+  const first = parts[0][0].toUpperCase() + parts[0].slice(1)
+  if (parts.length === 1) return first
+  return `${first} ${parts[parts.length - 1][0].toUpperCase()}.`
+}
+
+// Conta antiga criada antes do apelido ser obrigatório
+export function needsNickname(user) {
+  return !!user?.id && !(user.user_metadata?.nickname || '').trim()
+}
+
 // Garante que a conta tem um perfil (apelido visível para os amigos)
 export async function syncProfile(user) {
   if (!user?.id) return
