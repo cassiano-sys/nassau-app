@@ -28,7 +28,7 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
   try {
     // O servidor só faz a leitura pra quem está logado — manda o token da sessão
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) throw new Error('Sua sessão expirou. Saia e entre de novo para usar a leitura por foto.')
+    if (!session?.access_token) throw Object.assign(new Error('Sua sessão expirou. Saia e entre de novo para usar a leitura por foto.'), { friendly: true })
     const response = await fetch('/api/read-card', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -42,7 +42,7 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
     return await response.json()
   } catch (e) {
     if (e.name === 'AbortError') {
-      throw new Error('A leitura demorou demais e foi cancelada (mais de 55s) - tente uma foto mais simples/bem iluminada, ou tente de novo.')
+      throw Object.assign(new Error('A leitura demorou demais (mais de 55s). Tente uma foto mais nítida e bem iluminada, ou tente de novo.'), { friendly: true })
     }
     throw e
   } finally {
@@ -265,7 +265,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
       setPhotoResult({
         scores: players.map(() => Array(18).fill(null)),
         confidence: 'low',
-        notes: `Leitura automática não foi possível (${e.message || 'erro desconhecido'}). Preencha ou corrija os scores abaixo.`,
+        // Mensagens nossas aparecem como estão; erro técnico (rede, servidor)
+        // vira uma frase simples — o detalhe fica no console (F12).
+        notes: e.friendly
+          ? `${e.message} Ou digite os scores abaixo.`
+          : 'A leitura por foto não respondeu agora. Tente de novo em instantes ou digite os scores abaixo.',
       })
     }
     setProcessing(false)
