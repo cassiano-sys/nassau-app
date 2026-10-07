@@ -27,7 +27,7 @@ export default function App() {
   // Home como se tivesse logado normalmente, sem nunca chegar a trocar a
   // senha de fato.
   const [passwordRecovery, setPasswordRecovery] = useState(false)
-  const [notice, setNotice] = useState('') // aviso na Home (ex.: convite aceito)
+  const [notice, setNotice] = useState(null) // aviso na Home: { text, detail?, retry? }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -46,15 +46,36 @@ export default function App() {
     if (!uid) return
     syncProfile(session.user)
     const code = pendingInvite()
-    if (!code) return
-    acceptInvite(code)
-      .then(nick => setNotice(`🤝 Você e ${nick} agora são amigos no Caddie Stakes.`))
-      .catch(e => {
-        console.error('Convite não aceito:', e.message)
-        if (!/not authenticated/i.test(e.message)) setNotice('Esse link de convite não é mais válido. Peça um novo ao seu amigo.')
-      })
-      .finally(clearPendingInvite)
+    if (code) tryAcceptInvite(code)
   }, [uid])
+
+  // Aceita o convite guardado. Se a sessão estiver velha, renova e tenta de
+  // novo uma vez. Só descarta o convite quando der certo ou quando o código
+  // realmente não existe — qualquer outra falha fica guardada pra tentar de
+  // novo (botão no aviso, ou sozinho na próxima vez que o app abrir).
+  const tryAcceptInvite = async (code, retried = false) => {
+    try {
+      const nick = await acceptInvite(code)
+      clearPendingInvite()
+      setNotice({ text: `🤝 Você e ${nick} agora são amigos no Caddie Stakes.` })
+    } catch (e) {
+      const msg = e?.message || String(e)
+      console.error('Convite não aceito:', msg)
+      if (!retried && /jwt|token|expired|not authenticated/i.test(msg)) {
+        await supabase.auth.refreshSession().catch(() => {})
+        return tryAcceptInvite(code, true)
+      }
+      const invalid = /invalid invite/i.test(msg)
+      if (invalid) clearPendingInvite()
+      setNotice({
+        text: invalid
+          ? 'Esse link de convite não existe. Confira se o link veio completo ou peça um novo ao seu amigo.'
+          : 'Não deu pra aceitar o convite agora.',
+        detail: msg,
+        retry: invalid ? null : () => { setNotice(null); tryAcceptInvite(code) },
+      })
+    }
+  }
 
   if (loading) return <Splash />
   if (passwordRecovery) return <ResetPasswordScreen onDone={() => setPasswordRecovery(false)}/>
@@ -75,7 +96,7 @@ export default function App() {
   else if (screen === 'history')      content = <HistoryScreen      onBack={() => nav('home')} session={session}/>
   else if (screen === 'ranking')      content = <RankingScreen      onBack={() => nav('home')} session={session}/>
   else if (screen === 'profile')      content = <ProfileScreen      onBack={() => nav('home')} session={session} onSignOut={() => { setSession(null); nav('home') }}/>
-  else                                 content = <HomeScreen nav={nav} session={session} onResume={resume} notice={notice} onDismissNotice={() => setNotice('')}/>
+  else                                 content = <HomeScreen nav={nav} session={session} onResume={resume} notice={notice} onDismissNotice={() => setNotice(null)}/>
 
   // Botão flutuante de "relatar problema" — aparece em toda tela logada,
   // menos na Apresentação (tela em tela cheia, sem distrações, no fim da
