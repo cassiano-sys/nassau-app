@@ -174,7 +174,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
     setSavingCourse(false)
     if (error) {
       setCourseError(error.message || 'Não foi possível salvar o campo.')
-      return
+      return null
     }
     if (data) {
       setSavedCourses(prev => {
@@ -185,8 +185,12 @@ export default function SetupScreen({ onStart, onBack, session }) {
       setNewCourseName('')
       setCourseSaved(true)
       setTimeout(() => setCourseSaved(false), 2500)
+      return { id: data.id, name: data.name, city: '', si: data.si, par: data.par }
     }
+    return null
   }
+
+  const isCustomCourse = course.id === 'custom'
 
   const isSindicato  = format === 'sindicato'
   const sindPctNow   = sindPct[numPlayers] || []
@@ -211,7 +215,16 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const dupName = activeNames.find((n, i) => activeNames.indexOf(n) !== i)
   const canStart = players.slice(0, numPlayers).every(p => p.name.trim()) && sindValid && !dupName
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    // "Outro campo" com nome: salva o campo junto ao iniciar, pra ele ficar
+    // na lista nas próximas rodadas (antes era preciso um botão à parte).
+    let startCourse = course
+    if (isCustomCourse && newCourseName.trim()) {
+      const saved = await saveCourse()
+      if (!saved) return // mostra o erro no quadro do campo e não inicia
+      startCourse = saved
+    }
+
     // Salva/atualiza os jogadores desta rodada como parceiros, pra sugerir
     // o nome (e o handicap) da próxima vez que você montar um jogo. Não
     // bloqueia o início da rodada — é feito em segundo plano.
@@ -234,7 +247,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
     onStart({
       format,
       players: players.slice(0, numPlayers),
-      course, si, par,
+      course: startCourse, si, par,
       teamA, teamB, playWithin, teamsEnabled,
       playsIndividual: playsIndividual.slice(0, numPlayers),
       betValues: isSindicato
@@ -615,10 +628,26 @@ export default function SetupScreen({ onStart, onBack, session }) {
 
         {/* Par + SI */}
         <div className="card">
-          <h2>Par e Índice Stroke — {course.name}</h2>
+          <h2>Par e Índice Stroke — {isCustomCourse ? (newCourseName.trim() || 'campo novo') : course.name}</h2>
+          {isCustomCourse ? (
+            <div style={{ marginBottom: 12 }}>
+              <div className="field-label">Nome do campo</div>
+              <input style={{ ...inputStyle, marginBottom: 4 }} placeholder="Ex.: Alphaville" maxLength={40}
+                value={newCourseName} onChange={e => setNewCourseName(e.target.value)}/>
+              <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                {newCourseName.trim()
+                  ? 'O campo é salvo ao iniciar a rodada e fica na lista para você e seu grupo nas próximas.'
+                  : 'Sem nome, o par e o SI valem só para esta rodada e não ficam salvos.'}
+              </div>
+              {courseError && (
+                <p style={{ fontSize: 12, color: 'var(--red, #e05555)', marginTop: 6 }}>⚠️ Não foi possível salvar o campo: {courseError}</p>
+              )}
+            </div>
+          ) : (
           <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
             Ajuste os valores se precisar — dá pra salvar como um campo novo logo abaixo.
           </p>
+          )}
           <div style={{ marginBottom: 4, fontSize: 10, color: 'var(--muted2)', letterSpacing: '0.5px' }}>PAR</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9,1fr)', gap: 5, marginBottom: 10 }}>
             {Array.from({ length: 18 }, (_, i) => (
@@ -647,9 +676,10 @@ export default function SetupScreen({ onStart, onBack, session }) {
           </div>
         </div>
 
-        {/* Cadastrar campo novo */}
-        <div className="card">
-          <h2>Cadastrar este campo</h2>
+        {/* Salvar variação de um campo da lista como campo novo (para "Outro
+            campo" o nome fica no topo e o campo é salvo ao iniciar) */}
+        {!isCustomCourse && <div className="card">
+          <h2>Salvar como campo novo</h2>
           <p style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
             Dê um nome e salve os valores de Par/SI acima como um campo novo — ele fica disponível pra você (e pro seu grupo) escolher nas próximas rodadas.
           </p>
@@ -670,15 +700,15 @@ export default function SetupScreen({ onStart, onBack, session }) {
               ⚠️ {courseError}
             </p>
           )}
-        </div>
+        </div>}
 
         {dupName && (
           <p style={{ fontSize: 12, color: 'var(--red, #e05555)', margin: '0 0 10px', lineHeight: 1.5 }}>
             ⚠️ Dois jogadores com o mesmo nome. Diferencie com a inicial do sobrenome (ex.: "Alexandre G.").
           </p>
         )}
-        <button className="btn-primary" onClick={handleStart} disabled={!canStart}>
-          Iniciar Rodada →
+        <button className="btn-primary" onClick={handleStart} disabled={!canStart || savingCourse}>
+          {savingCourse ? 'Salvando o campo...' : 'Iniciar Rodada →'}
         </button>
 
       </div>
