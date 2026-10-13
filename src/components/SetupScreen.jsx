@@ -58,6 +58,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
   const [friends,      setFriends]      = useState([]) // amigos conectados (contas vinculáveis)
   const [savedCourses, setSavedCourses] = useState([]) // campos customizados cadastrados
   const [newCourseName, setNewCourseName] = useState('')
+  const [newCourseCity, setNewCourseCity] = useState('') // "Cidade, UF" (opcional)
   const [savingCourse,  setSavingCourse]  = useState(false)
   const [courseSaved,   setCourseSaved]   = useState(false)
   const [courseError,   setCourseError]   = useState('')
@@ -94,7 +95,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
 
   // Carrega os campos customizados cadastrados (por qualquer usuário do grupo)
   useEffect(() => {
-    supabase.from('saved_courses').select('id,name,par,si')
+    supabase.from('saved_courses').select('*')
       .order('name', { ascending: true })
       .then(({ data, error }) => {
         if (error) console.error('Erro ao carregar campos cadastrados:', error.message)
@@ -155,12 +156,12 @@ export default function SetupScreen({ onStart, onBack, session }) {
     }
   }
 
-  const selectCourse = (c) => { setCourse(c); setSi([...c.si]); setPar([...c.par]); setNewCourseName('') }
+  const selectCourse = (c) => { setCourse(c); setSi([...c.si]); setPar([...c.par]); setNewCourseName(''); setNewCourseCity('') }
 
   // Campos fixos do app + campos customizados cadastrados pelo grupo
   const courseList = [
     ...COURSES,
-    ...savedCourses.map(c => ({ id: c.id, name: c.name, city: '', si: c.si, par: c.par })),
+    ...savedCourses.map(c => ({ id: c.id, name: c.name, city: c.city || '', si: c.si, par: c.par })),
   ]
 
   const saveCourse = async () => {
@@ -168,9 +169,15 @@ export default function SetupScreen({ onStart, onBack, session }) {
     if (!name || !session?.user?.id) return
     setSavingCourse(true)
     setCourseError('')
-    const { data, error } = await supabase.from('saved_courses')
-      .upsert({ user_id: session.user.id, name, par, si }, { onConflict: 'user_id,name' })
-      .select('id,name,par,si').single()
+    // Cidade: a digitada (campo novo) ou a do campo de origem (variação)
+    const city = (isCustomCourse ? newCourseCity : course.city || '').trim() || null
+    const upsertCourse = (row) => supabase.from('saved_courses')
+      .upsert(row, { onConflict: 'user_id,name' }).select('*').single()
+    let { data, error } = await upsertCourse({ user_id: session.user.id, name, par, si, city })
+    // Banco ainda sem a coluna "city": salva sem ela em vez de falhar
+    if (error && /city/i.test(error.message || '')) {
+      ;({ data, error } = await upsertCourse({ user_id: session.user.id, name, par, si }))
+    }
     setSavingCourse(false)
     if (error) {
       setCourseError(error.message || 'Não foi possível salvar o campo.')
@@ -181,11 +188,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
         const exists = prev.some(c => c.id === data.id)
         return exists ? prev.map(c => c.id === data.id ? data : c) : [...prev, data]
       })
-      setCourse({ id: data.id, name: data.name, city: '', si: data.si, par: data.par })
-      setNewCourseName('')
+      setCourse({ id: data.id, name: data.name, city: data.city || '', si: data.si, par: data.par })
+      setNewCourseName(''); setNewCourseCity('')
       setCourseSaved(true)
       setTimeout(() => setCourseSaved(false), 2500)
-      return { id: data.id, name: data.name, city: '', si: data.si, par: data.par }
+      return { id: data.id, name: data.name, city: data.city || '', si: data.si, par: data.par }
     }
     return null
   }
@@ -632,8 +639,10 @@ export default function SetupScreen({ onStart, onBack, session }) {
           {isCustomCourse ? (
             <div style={{ marginBottom: 12 }}>
               <div className="field-label">Nome do campo</div>
-              <input style={{ ...inputStyle, marginBottom: 4 }} placeholder="Ex.: Alphaville" maxLength={40}
+              <input style={{ ...inputStyle, marginBottom: 6 }} placeholder="Nome completo — ex.: Clube Curitibano" maxLength={40}
                 value={newCourseName} onChange={e => setNewCourseName(e.target.value)}/>
+              <input style={{ ...inputStyle, marginBottom: 4 }} placeholder="Cidade, UF — ex.: Curitiba, PR (opcional)" maxLength={40}
+                value={newCourseCity} onChange={e => setNewCourseCity(e.target.value)}/>
               <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
                 {newCourseName.trim()
                   ? 'O campo é salvo ao iniciar a rodada e fica na lista para você e seu grupo nas próximas.'
