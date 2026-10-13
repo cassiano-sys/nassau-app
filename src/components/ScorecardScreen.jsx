@@ -55,7 +55,12 @@ async function readCardWithVision(imageBase64, players, si, par, handwritingBase
 // readOnly: rodada já salva, aberta pelo Histórico — mostra só o Resumo, sem
 // editar nem salvar. storedMoney: o saldo gravado na época (é o que vale).
 export default function ScorecardScreen({ config, onFinish, onBack, session, initialDraft, readOnly, storedMoney, viewMeta }) {
-  const { format, players, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled, medalSide } = config
+  const { format, players: configPlayers, si, par, betValues, betUnit, numPlayers, teamA, teamB, playWithin, course, playsIndividual, teamsEnabled, medalSide } = config
+  // Handicaps podem ser corrigidos durante a rodada (digitou errado no início).
+  // Os scores são brutos, então todo o cálculo é refeito com o valor novo.
+  const [players, setPlayers] = useState(configPlayers)
+  const [hcpOpen, setHcpOpen] = useState(false)
+  const setHandicap = (pi, v) => setPlayers(prev => prev.map((p, i) => i === pi ? { ...p, handicap: v } : p))
   // Retrocompatível: rodadas antigas (ou config sem o campo) tratam todo mundo como "joga individual"
   const indivEnabled = playsIndividual || players.map(() => true)
   // Retrocompatível: configs antigas não tinham esse campo — nesse caso a
@@ -76,8 +81,8 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
   const savedRef = useRef(!!readOnly) // visualização: nunca grava rascunho
   useEffect(() => {
     if (savedRef.current) return
-    saveDraft(session?.user?.id, { config, scores, activeHole, startedAt: initialDraft?.startedAt || config.startedAt })
-  }, [scores, activeHole])
+    saveDraft(session?.user?.id, { config: { ...config, players }, scores, activeHole, startedAt: initialDraft?.startedAt || config.startedAt })
+  }, [scores, activeHole, players])
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -635,10 +640,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
                         borderLeft: `2px solid ${teamA.includes(pi) ? '#4a7acc' : '#aa4444'}`,
                         marginBottom: 6,
                       }}>
-                        <div style={{ flex: 1 }}>
+                        <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setHcpOpen(true)} title="Ajustar handicap">
                           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cream)', letterSpacing: '0.3px' }}>{p.name}</div>
                           <div style={{ fontSize: 10, color: 'var(--muted2)', marginTop: 2, letterSpacing: '0.3px' }}>
                             HCP {p.handicap}{strokes > 0 ? ` · +${strokes}` : strokes < 0 ? ` · −${-strokes}` : ' · scratch'}
+                            <span style={{ opacity: 0.55, marginLeft: 4 }}>✎</span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -716,6 +722,14 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
         </div>
       ) : (
         <div className="screen-body">
+          {/* Conferência dos handicaps — é aqui que o erro costuma aparecer */}
+          {!readOnly && (
+            <button type="button" onClick={() => setHcpOpen(true)} className="hcp-check-line">
+              <span style={{ color: 'var(--muted2)' }}>Handicaps:</span>{' '}
+              {players.map(p => `${p.name} ${p.handicap}`).join(' · ')}
+              <span style={{ color: 'var(--gold)', marginLeft: 6, whiteSpace: 'nowrap' }}>✎ ajustar</span>
+            </button>
+          )}
           {/* Full scorecard */}
           <FullScorecard players={players} scores={scores} si={si} par={par}
             lowestHcp={lowestHcp} teamA={teamA}/>
@@ -809,6 +823,39 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
           </>}
         </div>
       )}
+      {hcpOpen && !readOnly && (
+        <HandicapEditor players={players} onChange={setHandicap} onClose={() => setHcpOpen(false)}/>
+      )}
+    </div>
+  )
+}
+
+// Painel para corrigir handicaps com a rodada em andamento. Aplica na hora:
+// os scores lançados ficam como estão e só o cálculo é refeito.
+function HandicapEditor({ players, onChange, onClose }) {
+  const clamp = v => Math.max(-10, Math.min(54, v))
+  return (
+    <div className="hcp-sheet-backdrop" onClick={onClose}>
+      <div className="hcp-sheet" onClick={e => e.stopPropagation()} role="dialog" aria-label="Ajustar handicaps">
+        <div style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)', fontWeight: 600, marginBottom: 4 }}>Ajustar handicaps</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
+          Os scores lançados continuam iguais — o resultado é recalculado na hora.
+        </div>
+        {players.map((p, pi) => (
+          <div key={pi} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--border)' }}>
+            <span style={{ fontSize: 14, color: 'var(--cream)', fontWeight: 600 }}>{p.name}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button type="button" className="adj-btn" aria-label={`Diminuir handicap de ${p.name}`} onClick={() => onChange(pi, clamp(p.handicap - 1))}>−</button>
+              <input type="number" inputMode="numeric" min="-10" max="54" value={p.handicap}
+                aria-label={`Handicap de ${p.name}`}
+                onChange={e => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) onChange(pi, clamp(v)) }}
+                style={{ width: 52, textAlign: 'center', fontSize: 16, padding: '6px 4px', borderRadius: 8, border: '0.5px solid var(--border)', background: 'rgba(0,0,0,0.25)', color: 'var(--cream)' }}/>
+              <button type="button" className="adj-btn" aria-label={`Aumentar handicap de ${p.name}`} onClick={() => onChange(pi, clamp(p.handicap + 1))}>+</button>
+            </div>
+          </div>
+        ))}
+        <button type="button" className="btn-primary" onClick={onClose} style={{ marginTop: 14, marginBottom: 0 }}>Pronto</button>
+      </div>
     </div>
   )
 }
