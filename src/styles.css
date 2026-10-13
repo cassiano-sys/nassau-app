@@ -618,3 +618,22 @@ input[type="number"]:focus {
   .header-title { font-size: 16px; }
   .view-toggle button { padding: 6px 9px; font-size: 11px; }
 }
+
+/* Ajuste de handicap durante a rodada */
+.hcp-check-line {
+  display: block; width: 100%; text-align: left;
+  background: rgba(0,0,0,0.2); border: 0.5px solid var(--border); border-radius: 10px;
+  padding: 9px 12px; margin-bottom: 12px; cursor: pointer;
+  font-family: var(--sans); font-size: 12px; color: var(--cream); line-height: 1.5;
+}
+.hcp-sheet-backdrop {
+  position: fixed; inset: 0; z-index: 550; /* acima do botão de bug (500), abaixo do formulário dele (600) */
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.hcp-sheet {
+  width: 100%; max-width: 480px; box-sizing: border-box;
+  background: #0f1d12; border-top: 0.5px solid var(--border-gold, rgba(201,168,76,0.4));
+  border-radius: 16px 16px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  max-height: 85vh; overflow-y: auto;
+}
