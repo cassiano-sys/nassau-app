@@ -2,7 +2,54 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Tema claro (padrão) ──────────────────────────────────────────────────
+   O app é usado ao ar livre, quase sempre sob sol forte durante o jogo —
+   fundo claro com texto escuro reflete menos luz e mantém mais contraste
+   nessas condições do que um fundo escuro. O tema escuro vira opcional,
+   ativado pelo botão de alternância (ThemeToggle) e lembrado por aparelho
+   via localStorage — ver src/lib/theme.js. */
 :root {
+  --bg:      #f7f4ea;
+  --bg2:     #efe9d8;
+  --bg3:     #f1ead8;
+  --surface: rgba(255,255,255,0.62);
+  --gold:    #8a6a1a;
+  --gold2:   #a9872a;
+  --green:   #1f7a42;
+  --green2:  #2e6b44;
+  --dark-green: #2d5a30;
+  --cream:   #1c1a12;
+  --muted:   #5f7a61;
+  --muted2:  #4a6b4c;
+  --red:     #b33d3d;
+  --blue:    #2f6fae;
+  --border:  rgba(0,0,0,0.08);
+  --border-gold: rgba(138,106,26,0.25);
+  --border-strong: rgba(0,0,0,0.14);
+  --panel-weak:   rgba(0,0,0,0.035);
+  --panel:        rgba(0,0,0,0.05);
+  --panel-strong: rgba(0,0,0,0.065);
+  --header-bg: rgba(255,255,255,0.86);
+  --ghost-text:  rgba(0,0,0,0.22);
+  --ghost-text2: rgba(0,0,0,0.16);
+  --tie-tint: rgba(0,0,0,0.035);
+  --table-head-bg: rgba(0,0,0,0.05);
+  --overlay-scrim: rgba(0,0,0,0.45);
+  --sheet-bg: #fbf8f0;
+  --scrollbar-thumb: rgba(0,0,0,0.15);
+  --eagle-color: #a6790a;
+  --bogey-color: #c06a2a;
+  --blue-bg: rgba(47,111,174,0.08);
+  --blue-border: rgba(47,111,174,0.35);
+  --text-dim: rgba(0,0,0,0.6);
+  --r:       12px;
+  --rr:      8px;
+  --serif:   'Cormorant Garamond', Georgia, serif;
+  --sans:    'Inter', system-ui, sans-serif;
+}
+
+/* ── Tema escuro (opcional, via botão) — restaura a paleta original ── */
+:root[data-theme="dark"] {
   --bg:      #0d1a0f;
   --bg2:     #0a140c;
   --bg3:     #060e07;
@@ -13,20 +60,31 @@
   --green2:  #4a9a64;
   --dark-green: #2d5a30;
   --cream:   #e8dfc8;
-  /* Clareados de #4a6a4c/#5a7a5c (contraste 2.95:1 / 3.73:1 sobre o fundo -
-     abaixo do mínimo de acessibilidade de 4.5:1, e o app é usado ao ar livre,
-     muitas vezes sob sol forte). Agora em 5.6:1 / 7.5:1, bem mais legível em
-     rótulos, placeholders e texto secundário sem fugir da paleta verde. */
+  /* Clareados de #4a6a4c/#5a7a5c (contraste 2.95:1 / 3.73:1 sobre o fundo
+     escuro - abaixo do mínimo de acessibilidade de 4.5:1). Em 5.6:1 / 7.5:1. */
   --muted:   #9ac49d;
   --muted2:  #88b28b;
   --red:     #cc5555;
   --blue:    #4488cc;
   --border:  rgba(255,255,255,0.06);
   --border-gold: rgba(201,168,76,0.2);
-  --r:       12px;
-  --rr:      8px;
-  --serif:   'Cormorant Garamond', Georgia, serif;
-  --sans:    'Inter', system-ui, sans-serif;
+  --border-strong: rgba(255,255,255,0.12);
+  --panel-weak:   rgba(0,0,0,0.2);
+  --panel:        rgba(0,0,0,0.25);
+  --panel-strong: rgba(0,0,0,0.35);
+  --header-bg: rgba(6,14,7,0.9);
+  --ghost-text:  rgba(255,255,255,0.15);
+  --ghost-text2: rgba(255,255,255,0.12);
+  --tie-tint: rgba(255,255,255,0.03);
+  --table-head-bg: rgba(0,0,0,0.5);
+  --overlay-scrim: rgba(0,0,0,0.55);
+  --sheet-bg: #0f1d12;
+  --scrollbar-thumb: rgba(255,255,255,0.1);
+  --eagle-color: #ffd700;
+  --bogey-color: #e8a070;
+  --blue-bg: rgba(68,136,204,0.08);
+  --blue-border: rgba(68,136,204,0.35);
+  --text-dim: rgba(255,255,255,0.6);
 }
 
 body {
@@ -37,6 +95,7 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background .2s, color .2s;
 }
 
 input[type=number]::-webkit-inner-spin-button,
@@ -51,7 +110,7 @@ input[type=number] { -moz-appearance: textfield; }
 .app-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px;
-  background: rgba(6,14,7,0.85);
+  background: var(--header-bg);
   border-bottom: 0.5px solid var(--border);
   position: sticky; top: 0; z-index: 20;
   backdrop-filter: blur(16px);
@@ -65,7 +124,7 @@ input[type=number] { -moz-appearance: textfield; }
 .header-title span { color: var(--gold); }
 .back-btn {
   background: transparent;
-  border: 0.5px solid rgba(255,255,255,0.12);
+  border: 0.5px solid var(--border-strong);
   color: var(--cream); border-radius: var(--rr);
   padding: 7px 14px; cursor: pointer;
   font-size: 13px; font-family: var(--sans);
@@ -117,11 +176,11 @@ input[type=number] { -moz-appearance: textfield; }
 
 .btn-secondary {
   width: 100%; padding: 12px;
-  background: rgba(255,255,255,0.04);
-  border: 0.5px solid rgba(255,255,255,0.12);
+  background: var(--panel-weak);
+  border: 0.5px solid var(--border-strong);
   color: var(--cream); border-radius: var(--r);
   font-family: var(--sans);
-  font-size: 14px; cursor: pointer; transition: all 0.15s;
+  font-size: 14px; cursor: pointer; transition: all .15s;
   margin-bottom: 8px; letter-spacing: 0.3px;
 }
 .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
@@ -133,7 +192,7 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--green); border-radius: var(--r);
   font-family: var(--sans);
   font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px;
+  cursor: pointer; transition: all .15s; letter-spacing: 0.3px;
 }
 .btn-green:hover { background: rgba(45,90,45,0.35); }
 
@@ -152,8 +211,8 @@ input[type=number] { -moz-appearance: textfield; }
 .toggle-btn {
   flex: 1; padding: 9px 6px;
   border-radius: var(--rr);
-  border: 0.5px solid rgba(255,255,255,0.08);
-  background: rgba(0,0,0,0.2);
+  border: 0.5px solid var(--border);
+  background: var(--panel);
   color: var(--muted2);
   cursor: pointer; font-family: var(--sans);
   font-size: 13px; transition: all 0.15s; letter-spacing: 0.3px;
@@ -172,8 +231,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .text-input {
   width: 100%;
-  background: rgba(0,0,0,0.3);
-  border: 0.5px solid rgba(255,255,255,0.1);
+  background: var(--panel-strong);
+  border: 0.5px solid var(--border);
   border-radius: var(--rr); color: var(--cream);
   font-family: var(--sans); font-size: 15px;
   padding: 11px 13px; transition: border-color .15s;
@@ -204,7 +263,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── View toggle ── */
 .view-toggle {
   display: flex; gap: 3px;
-  background: rgba(0,0,0,0.3);
+  background: var(--panel-strong);
   border-radius: var(--rr); padding: 3px;
 }
 .view-toggle button {
@@ -223,8 +282,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .hole-btn {
   aspect-ratio: 1; border-radius: 7px;
-  border: 0.5px solid rgba(255,255,255,0.07);
-  background: rgba(0,0,0,0.2); color: var(--muted);
+  border: 0.5px solid var(--border);
+  background: var(--panel); color: var(--muted);
   font-size: 11px; font-weight: 600;
   cursor: pointer; transition: all 0.12s;
 }
@@ -242,38 +301,47 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   width: 54px; height: 50px;
-  background: rgba(0,0,0,0.2);
-  border: 0.5px dashed rgba(255,255,255,0.12);
+  background: var(--panel);
+  border: 0.5px dashed var(--border-strong);
   border-radius: var(--rr); cursor: pointer; gap: 1px;
   transition: all 0.15s;
 }
 .score-unset:hover { border-color: var(--gold); background: rgba(201,168,76,0.06); }
 .unset-par {
   font-size: 19px; font-weight: 700;
-  color: rgba(255,255,255,0.15);
+  color: var(--ghost-text);
   font-family: var(--serif);
 }
 .unset-label {
-  font-size: 7px; color: rgba(255,255,255,0.12);
+  font-size: 7px; color: var(--ghost-text2);
   text-transform: uppercase; letter-spacing: 1.5px;
+}
+/* Par pré-preenchido ao avançar de buraco (ver ScorecardScreen): visualmente
+   diferente do "unset" (tracejado/fantasma) e do editado manualmente — um
+   contorno sólido mas discreto, para o grupo conseguir ver no cartão quem
+   ainda não conferiu aquele buraco antes de fechar a aposta. */
+.score-input-set.auto-par {
+  border-style: dashed;
+  border-color: var(--border-gold);
+  color: var(--muted2);
 }
 .score-input-set {
   width: 54px; height: 50px;
-  background: rgba(0,0,0,0.4);
-  border: 0.5px solid rgba(255,255,255,0.15);
+  background: var(--panel-strong);
+  border: 0.5px solid var(--border-strong);
   border-radius: var(--rr); color: var(--cream);
   font-size: 24px; font-weight: 700; text-align: center;
   font-family: var(--serif); transition: border-color .15s;
 }
 .score-input-set:focus { outline: none; border-color: var(--gold); }
 .score-input-set.birdie { color: var(--green); border-color: rgba(93,186,122,0.4); }
-.score-input-set.eagle  { color: #ffd700; border-color: rgba(255,215,0,0.4); }
-.score-input-set.bogey  { color: #e8a070; }
+.score-input-set.eagle  { color: var(--eagle-color); border-color: rgba(166,121,10,0.4); }
+.score-input-set.bogey  { color: var(--bogey-color); }
 .score-input-set.double { color: var(--red); }
 .adj-btn {
   width: 36px; height: 50px; border-radius: var(--rr);
-  border: 0.5px solid rgba(255,255,255,0.1);
-  background: rgba(0,0,0,0.2);
+  border: 0.5px solid var(--border);
+  background: var(--panel);
   color: var(--cream); font-size: 22px; font-weight: 300;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: all 0.12s; user-select: none;
@@ -283,7 +351,7 @@ input[type=number] { -moz-appearance: textfield; }
 .pardiff { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
 .pardiff.under { color: var(--green); }
 .pardiff.even  { color: var(--gold); }
-.pardiff.over  { color: #e8a070; }
+.pardiff.over  { color: var(--bogey-color); }
 
 /* ── Saldo final — números grandes ── */
 .saldo-grid {
@@ -302,7 +370,7 @@ input[type=number] { -moz-appearance: textfield; }
   border: 0.5px solid rgba(204,85,85,0.2);
 }
 .saldo-cell.tie {
-  background: rgba(255,255,255,0.03);
+  background: var(--tie-tint);
   border: 0.5px solid var(--border);
 }
 .saldo-name {
@@ -322,7 +390,7 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex; align-items: flex-start;
   justify-content: space-between;
   padding: 6px 0; border-bottom: 0.5px solid var(--border);
-  gap: 8px; font-size: 12px; color: rgba(255,255,255,0.6);
+  gap: 8px; font-size: 12px; color: var(--text-dim);
 }
 .seg-row:last-child { border: none; }
 .seg-label { display: block; font-size: 9px; color: var(--muted); margin-bottom: 2px; letter-spacing: 0.5px; }
@@ -331,26 +399,26 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Scorecard table ── */
 .sc-wrap { overflow-x: auto; border-radius: var(--rr); }
-.sct { width: 100%; border-collapse: collapse; font-size: 10px; background: rgba(0,0,0,0.3); }
+.sct { width: 100%; border-collapse: collapse; font-size: 10px; background: var(--panel); }
 .sct th, .sct td { padding: 5px 3px; text-align: center; border: 0.5px solid var(--border); }
-.sct th { background: rgba(0,0,0,0.5); color: var(--muted2); font-weight: 600; letter-spacing: 0.3px; }
-.sct td.bk { background: rgba(0,0,0,0.15); }
+.sct th { background: var(--table-head-bg); color: var(--muted2); font-weight: 600; letter-spacing: 0.3px; }
+.sct td.bk { background: var(--panel-weak); }
 .sct .gc { display: block; font-weight: 700; color: var(--cream); font-family: var(--serif); font-size: 11px; }
 .sct .nc { display: block; font-size: 8px; color: var(--gold); margin-top: 1px; }
 .sct .pnc { text-align: left; padding: 5px 8px; font-weight: 600; white-space: nowrap; }
 .sct .par-r { color: var(--gold) !important; font-family: var(--serif); }
-.sct .si-r  { color: rgba(255,255,255,0.2) !important; font-weight: 400 !important; }
+.sct .si-r  { color: var(--ghost-text) !important; font-weight: 400 !important; }
 .sct .tot-h { background: rgba(201,168,76,0.12) !important; color: var(--gold) !important; font-weight: 700 !important; }
 .sct .tot-c { background: rgba(201,168,76,0.05) !important; }
 .sct .birdie-cell .gc { color: var(--green) !important; }
-.sct .eagle-cell  .gc { color: #ffd700 !important; }
-.sct .bogey-cell  .gc { color: #e8a070 !important; }
+.sct .eagle-cell  .gc { color: var(--eagle-color) !important; }
+.sct .bogey-cell  .gc { color: var(--bogey-color) !important; }
 
 /* ── Ranking ── */
 .rank-row {
   display: flex; align-items: center; gap: 12px;
   padding: 13px 14px; border-radius: var(--r);
-  background: rgba(0,0,0,0.2);
+  background: var(--panel);
   border: 0.5px solid var(--border);
   margin-bottom: 7px; transition: all .15s;
 }
@@ -365,7 +433,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── History ── */
 .hist-card {
-  background: rgba(0,0,0,0.2);
+  background: var(--panel);
   border: 0.5px solid var(--border);
   border-radius: var(--r); padding: 14px; margin-bottom: 8px;
   transition: border-color .15s;
@@ -378,7 +446,7 @@ input[type=number] { -moz-appearance: textfield; }
 .hist-players { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .hist-player {
   display: flex; justify-content: space-between;
-  font-size: 13px; color: rgba(255,255,255,0.65);
+  font-size: 13px; color: var(--text-dim);
   align-items: center;
 }
 .hist-pname { font-weight: 500; letter-spacing: 0.2px; }
@@ -386,7 +454,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Profile ── */
 .avatar {
   width: 84px; height: 84px; border-radius: 50%;
-  background: rgba(0,0,0,0.4);
+  background: var(--panel-strong);
   border: 1px solid var(--border-gold);
   display: flex; align-items: center; justify-content: center;
   font-size: 30px; font-weight: 700;
@@ -397,7 +465,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Bottom nav ── */
 .bottom-nav {
   display: flex;
-  background: rgba(6,14,7,0.92);
+  background: var(--header-bg);
   border-top: 0.5px solid var(--border);
   padding: 10px 0 22px;
   position: fixed; bottom: 0; left: 0; right: 0;
@@ -415,6 +483,28 @@ input[type=number] { -moz-appearance: textfield; }
 .nav-btn.active { color: var(--gold); }
 .nav-btn .nav-icon { font-size: 20px; line-height: 1; }
 .nav-btn .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.5px; }
+
+/* ── Theme toggle (claro/escuro) ── */
+.theme-toggle-btn {
+  position: fixed;
+  left: 14px;
+  bottom: 96px;
+  z-index: 400;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border-strong);
+  background: var(--header-bg);
+  color: var(--gold);
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.15s;
+}
+.theme-toggle-btn:hover { border-color: var(--gold); transform: translateY(-1px); }
+.theme-toggle-btn:active { transform: translateY(0) scale(0.95); }
 
 /* ── Auth ── */
 .auth-screen {
@@ -449,14 +539,14 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .oauth-btn {
   width: 100%; padding: 13px; border-radius: var(--r);
-  border: 0.5px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.04); color: var(--cream);
+  border: 0.5px solid var(--border-strong);
+  background: var(--panel-weak); color: var(--cream);
   font-family: var(--sans); font-size: 14px;
   cursor: pointer; margin-bottom: 8px;
   display: flex; align-items: center; justify-content: center; gap: 10px;
   transition: all 0.15s; font-weight: 500; letter-spacing: 0.3px;
 }
-.oauth-btn:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); }
+.oauth-btn:hover { border-color: var(--border-strong); background: var(--panel); }
 .auth-error { color: var(--red); font-size: 13px; text-align: center; margin-top: 10px; }
 .auth-link {
   color: var(--gold); font-size: 13px; cursor: pointer;
@@ -472,7 +562,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Perf stats grid ── */
 .perf-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
 .perf-cell {
-  background: rgba(0,0,0,0.25);
+  background: var(--panel);
   border: 0.5px solid var(--border);
   border-radius: var(--rr);
   padding: 14px 10px; text-align: center;
@@ -490,15 +580,15 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Photo capture ── */
 .photo-btn {
   width: 100%; padding: 14px;
-  background: rgba(68,136,204,0.08);
-  border: 0.5px dashed rgba(68,136,204,0.35);
-  border-radius: var(--r); color: #6aabee;
+  background: var(--blue-bg);
+  border: 0.5px dashed var(--blue-border);
+  border-radius: var(--r); color: var(--blue);
   font-family: var(--sans); font-size: 14px;
   font-weight: 500; cursor: pointer; margin-bottom: 12px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: all 0.15s; letter-spacing: 0.3px;
 }
-.photo-btn:hover { background: rgba(68,136,204,0.15); border-color: rgba(68,136,204,0.5); }
+.photo-btn:hover { background: var(--blue-bg); border-color: var(--blue); }
 .photo-preview {
   width: 100%; border-radius: var(--r);
   margin-bottom: 12px; max-height: 300px; object-fit: contain;
@@ -568,7 +658,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Quick input ── */
 .quick-cell {
   height: 42px; min-width: 36px;
-  background: rgba(0,0,0,0.25);
+  background: var(--panel);
   border: 0.5px solid var(--border);
   border-radius: 6px; color: var(--cream);
   font-size: 15px; font-weight: 700; text-align: center;
@@ -584,7 +674,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
 
 /* ── Touch ── */
 button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -597,10 +687,12 @@ input  { -webkit-tap-highlight-color: transparent; }
 }
 .fade-in { animation: fadeInUp .4s ease both; }
 
-/* ── HCP and number inputs — force dark theme ── */
+/* ── HCP e inputs numéricos — segue o tema ativo (antes era forçado escuro
+   sempre, para contornar estilização nativa do teclado numérico em alguns
+   navegadores; agora usa as mesmas variáveis de tema) ── */
 input[type="number"] {
-  background: rgba(0,0,0,0.3) !important;
-  border: 0.5px solid rgba(255,255,255,0.12) !important;
+  background: var(--panel-strong) !important;
+  border: 0.5px solid var(--border-strong) !important;
   color: var(--cream) !important;
   border-radius: var(--rr) !important;
   font-family: var(--sans) !important;
@@ -622,18 +714,18 @@ input[type="number"]:focus {
 /* Ajuste de handicap durante a rodada */
 .hcp-check-line {
   display: block; width: 100%; text-align: left;
-  background: rgba(0,0,0,0.2); border: 0.5px solid var(--border); border-radius: 10px;
+  background: var(--panel); border: 0.5px solid var(--border); border-radius: 10px;
   padding: 9px 12px; margin-bottom: 12px; cursor: pointer;
   font-family: var(--sans); font-size: 12px; color: var(--cream); line-height: 1.5;
 }
 .hcp-sheet-backdrop {
   position: fixed; inset: 0; z-index: 550; /* acima do botão de bug (500), abaixo do formulário dele (600) */
-  background: rgba(0,0,0,0.55);
+  background: var(--overlay-scrim);
   display: flex; align-items: flex-end; justify-content: center;
 }
 .hcp-sheet {
   width: 100%; max-width: 480px; box-sizing: border-box;
-  background: #0f1d12; border-top: 0.5px solid var(--border-gold, rgba(201,168,76,0.4));
+  background: var(--sheet-bg); border-top: 0.5px solid var(--border-gold, rgba(201,168,76,0.4));
   border-radius: 16px 16px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
   max-height: 85vh; overflow-y: auto;
 }
