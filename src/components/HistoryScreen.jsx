@@ -485,7 +485,7 @@ export function HistoryScreen({ onBack, session }) {
                   <div key={i} className="hist-player">
                     <span className="hist-pname" style={{
                       fontWeight: isMe(p) ? 700 : 400,
-                      color: isMe(p) ? 'var(--gold)' : 'rgba(255,255,255,0.7)'
+                      color: isMe(p) ? 'var(--gold)' : 'var(--text-dim)'
                     }}>
                       {p.player_name}
                       <small style={{ color:'var(--muted)', fontWeight:400 }}> HCP{p.handicap}</small>
@@ -498,7 +498,7 @@ export function HistoryScreen({ onBack, session }) {
             </div>
             <button type="button" onClick={() => openRound(r)} disabled={opening === r.id}
               style={{ marginTop: 10, width: '100%', padding: '8px', borderRadius: 8, cursor: 'pointer',
-                background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.15)',
+                background: 'var(--panel-weak)', border: '0.5px solid var(--border-strong)',
                 color: 'var(--cream)', fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700 }}>
               {opening === r.id ? 'Abrindo...' : '📄 Ver resumo da rodada'}
             </button>
@@ -680,7 +680,7 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
           )}
         </div>
 
-        <div className="card" style={{ borderColor: 'rgba(68,136,204,0.25)' }}>
+        <div className="card" style={{ borderColor: 'var(--blue-border)' }}>
           <h2>Calibração de leitura (IA)</h2>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.7 }}>
             Escreva os números de 0 a 9, em ordem, numa folha de papel e fotografe. A IA usa essa amostra como referência para ler os cartões deste grupo com mais precisão.
@@ -729,7 +729,7 @@ export function ProfileScreen({ onBack, session, onSignOut }) {
             Sair da conta
           </button>
         </div>
-        <div className="card" style={{ borderColor:'rgba(201,168,76,0.2)' }}>
+        <div className="card" style={{ borderColor:'var(--border-gold)' }}>
           <h2>Caddie Stakes Golf</h2>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.8 }}>
             <div>Versão 1.0</div>
@@ -807,7 +807,7 @@ function FriendsCard({ session }) {
       ) : friends.length === 0 ? (
         <p style={{ fontSize: 12, color: 'var(--muted2)', marginBottom: 6 }}>Nenhum amigo conectado ainda.</p>
       ) : friends.map(f => (
-        <div key={f.id} style={{ padding: '9px 0', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
+        <div key={f.id} style={{ padding: '9px 0', borderTop: '0.5px solid var(--border-strong)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 14, color: 'var(--cream)' }}>{f.nickname} <span style={{ color: 'var(--green2, #5dba7a)', fontWeight: 700 }}>✓</span></span>
             <button type="button" onClick={() => { setClaimFor(claimFor === f.id ? null : f.id); setClaimName(f.nickname); setClaimMsg('') }}
@@ -816,7 +816,7 @@ function FriendsCard({ session }) {
             </button>
           </div>
           {claimFor === f.id && (
-            <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'var(--panel)' }}>
               <div style={{ fontSize: 11, color: 'var(--muted2)', marginBottom: 6, lineHeight: 1.5 }}>
                 Nome com que {f.nickname} aparece nas rodadas antigas que <strong>você</strong> lançou:
               </div>
