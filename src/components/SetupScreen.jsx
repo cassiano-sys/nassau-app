@@ -271,8 +271,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
 
   const inputStyle = {
     width: '100%',
-    background: 'rgba(0,0,0,0.3)',
-    border: '0.5px solid rgba(255,255,255,0.12)',
+    background: 'var(--panel)',
+    border: '0.5px solid var(--border-strong)',
     borderRadius: 'var(--rr)',
     color: 'var(--cream)',
     fontFamily: 'var(--sans)',
@@ -282,8 +282,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
 
   const hcpStyle = {
     width: 46, height: 34,
-    background: 'rgba(0,0,0,0.3)',
-    border: '0.5px solid rgba(255,255,255,0.12)',
+    background: 'var(--panel)',
+    border: '0.5px solid var(--border-strong)',
     borderRadius: 'var(--rr)',
     color: 'var(--cream)',
     fontFamily: 'var(--sans)',
@@ -293,8 +293,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
 
   const hcpBtnStyle = {
     width: 26, height: 34,
-    background: 'rgba(255,255,255,0.06)',
-    border: '0.5px solid rgba(255,255,255,0.12)',
+    background: 'var(--panel-weak)',
+    border: '0.5px solid var(--border-strong)',
     borderRadius: 'var(--rr)',
     color: 'var(--gold)',
     fontFamily: 'var(--sans)',
@@ -331,8 +331,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
-                  background: format === f.id ? 'rgba(201,168,76,0.12)' : 'rgba(0,0,0,0.2)',
-                  border: `0.5px solid ${format === f.id ? 'var(--gold)' : 'rgba(255,255,255,0.08)'}`,
+                  background: format === f.id ? 'rgba(201,168,76,0.12)' : 'var(--panel)',
+                  border: `0.5px solid ${format === f.id ? 'var(--gold)' : 'var(--border)'}`,
                   textAlign: 'left', fontFamily: 'var(--sans)',
                 }}>
                 <span style={{ fontSize: 22 }}>{f.icon}</span>
@@ -371,9 +371,9 @@ export default function SetupScreen({ onStart, onBack, session }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Array.from({ length: numPlayers }, (_, i) => (
               <div key={i} style={{
-                background: 'rgba(0,0,0,0.2)',
+                background: 'var(--panel)',
                 borderRadius: 10, padding: '12px 14px',
-                borderLeft: `2px solid ${i < 2 ? '#4a7acc' : '#aa4444'}`,
+                borderLeft: `2px solid ${i < 2 ? 'var(--blue)' : 'var(--red)'}`,
               }}>
                 {i === 0 && (
                   <div style={{ fontSize: 10, color: 'var(--gold)', letterSpacing: '1px', marginBottom: 8 }}>
@@ -412,7 +412,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
                     onClick={() => toggleIndividual(i)}>
                     <div style={{
                       width: 32, height: 18, borderRadius: 9, padding: 2,
-                      background: playsIndividual[i] ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                      background: playsIndividual[i] ? 'var(--green2)' : 'var(--border-strong)',
                       transition: 'background .2s', flexShrink: 0,
                     }}>
                       <div style={{
@@ -448,7 +448,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
               onClick={() => setTeamsEnabled(v => !v)}>
               <div style={{
                 width: 44, height: 24, borderRadius: 12, padding: 2,
-                background: teamsEnabled ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                background: teamsEnabled ? 'var(--green2)' : 'var(--border-strong)',
                 transition: 'background .2s', flexShrink: 0,
               }}>
                 <div style={{
@@ -474,11 +474,11 @@ export default function SetupScreen({ onStart, onBack, session }) {
                       onClick={() => toggleTeam(i)}
                       style={{
                         padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
-                        border: `1.5px solid ${teamA.includes(i) ? '#4a7acc' : '#aa4444'}`,
+                        border: `1.5px solid ${teamA.includes(i) ? 'var(--blue)' : 'var(--red)'}`,
                         background: teamA.includes(i) ? 'rgba(74,122,204,0.12)' : 'rgba(170,68,68,0.12)',
                         fontFamily: 'var(--sans)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                       }}>
-                      <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1.5px', color: teamA.includes(i) ? '#6aaaee' : '#ee6666', fontWeight: 600 }}>
+                      <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1.5px', color: teamA.includes(i) ? 'var(--blue)' : 'var(--red)', fontWeight: 600 }}>
                         {teamA.includes(i) ? 'Dupla A' : 'Dupla B'}
                       </span>
                       <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cream)' }}>
@@ -488,15 +488,15 @@ export default function SetupScreen({ onStart, onBack, session }) {
                   ))}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 12 }}>
-                  <span style={{ color: '#6aaaee' }}>A: {teamA.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
-                  <span style={{ color: '#ee6666' }}>B: {teamB.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
+                  <span style={{ color: 'var(--blue)' }}>A: {teamA.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
+                  <span style={{ color: 'var(--red)' }}>B: {teamB.map(i => players[i].name || `J${i+1}`).join(' / ')}</span>
                 </div>
                 {/* Toggle individual dentro da dupla */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', paddingTop: 10, borderTop: '0.5px solid var(--border)' }}
                   onClick={() => setPlayWithin(v => !v)}>
                   <div style={{
                     width: 44, height: 24, borderRadius: 12, padding: 2,
-                    background: playWithin ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                    background: playWithin ? 'var(--green2)' : 'var(--border-strong)',
                     transition: 'background .2s', flexShrink: 0,
                   }}>
                     <div style={{
@@ -543,7 +543,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>{l}</div>
                   <input type="number" min="1"
-                    style={{ width: 70, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+                    style={{ width: 70, height: 44, background: 'var(--panel)', border: '0.5px solid var(--border-strong)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
                     value={betValues[k]}
                     onChange={e => setBetValues(prev => ({ ...prev, [k]: Number(e.target.value) }))}
                   />
@@ -556,7 +556,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 {format === 'skins' ? 'Valor por Skin' : 'Valor por Ponto'}
               </div>
               <input type="number" min="1"
-                style={{ width: 80, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+                style={{ width: 80, height: 44, background: 'var(--panel)', border: '0.5px solid var(--border-strong)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
                 value={betUnit}
                 onChange={e => setBetUnit(Number(e.target.value))}
               />
@@ -580,7 +580,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
               onClick={() => setMedalSideOn(v => !v)}>
               <div style={{
                 width: 44, height: 24, borderRadius: 12, padding: 2,
-                background: medalSideOn ? 'var(--green2)' : 'rgba(255,255,255,0.12)',
+                background: medalSideOn ? 'var(--green2)' : 'var(--border-strong)',
                 transition: 'background .2s', flexShrink: 0,
               }}>
                 <div style={{
@@ -602,7 +602,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
                   <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                     <div style={{ fontSize: 10, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>{l}</div>
                     <input type="number" min="0"
-                      style={{ width: 70, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+                      style={{ width: 70, height: 44, background: 'var(--panel)', border: '0.5px solid var(--border-strong)', borderRadius: 8, color: 'var(--gold)', fontSize: 18, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
                       value={medalSideVals[k]}
                       onChange={e => setMedalSideVals(prev => ({ ...prev, [k]: Math.max(0, Number(e.target.value)) }))}
                     />
@@ -622,8 +622,8 @@ export default function SetupScreen({ onStart, onBack, session }) {
                 onClick={() => selectCourse(c)}
                 style={{
                   padding: '11px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                  border: `0.5px solid ${course.id === c.id ? 'var(--gold)' : 'rgba(255,255,255,0.08)'}`,
-                  background: course.id === c.id ? 'rgba(201,168,76,0.08)' : 'rgba(0,0,0,0.2)',
+                  border: `0.5px solid ${course.id === c.id ? 'var(--gold)' : 'var(--border)'}`,
+                  background: course.id === c.id ? 'rgba(201,168,76,0.08)' : 'var(--panel)',
                   fontFamily: 'var(--sans)',
                 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: course.id === c.id ? 'var(--gold)' : 'var(--cream)' }}>{c.name}</div>
@@ -663,7 +663,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                 <div style={{ fontSize: 9, color: 'var(--muted2)' }}>B{i+1}</div>
                 <input type="number" min="3" max="6"
-                  style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: 'var(--sans)' }}
+                  style={{ width: '100%', background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: 'var(--sans)' }}
                   value={par[i]}
                   onChange={e => setPar(prev => prev.map((v,vi) => vi===i ? Number(e.target.value) : v))}
                 />
@@ -676,7 +676,7 @@ export default function SetupScreen({ onStart, onBack, session }) {
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                 <div style={{ fontSize: 9, color: 'var(--muted2)' }}>B{i+1}</div>
                 <input type="number" min="1" max="18"
-                  style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: 'var(--sans)' }}
+                  style={{ width: '100%', background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 5, color: 'var(--cream)', fontSize: 11, fontWeight: 600, padding: '3px 2px', textAlign: 'center', fontFamily: 'var(--sans)' }}
                   value={si[i]}
                   onChange={e => setSi(prev => prev.map((v,vi) => vi===i ? Number(e.target.value) : v))}
                 />
@@ -738,7 +738,7 @@ function SindicatoBetConfig({ numPlayers, potValue, setPotValue, pct, pctSum, on
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
         <div style={{ fontSize: 11, color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>Pote total</div>
         <input type="number" min="1"
-          style={{ width: 90, height: 44, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+          style={{ width: 90, height: 44, background: 'var(--panel)', border: '0.5px solid var(--border-strong)', borderRadius: 8, color: 'var(--gold)', fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
           value={potValue}
           onChange={e => setPotValue(Number(e.target.value))}
         />
@@ -756,7 +756,7 @@ function SindicatoBetConfig({ numPlayers, potValue, setPotValue, pct, pctSum, on
           <div key={pos} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <div style={{ fontSize: 11, color: 'var(--muted2)', fontWeight: 700 }}>{POSITION_LABELS[pos]}</div>
             <input type="number" min="0" max="100"
-              style={{ width: '100%', maxWidth: 70, height: 40, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)', borderRadius: 8, color: 'var(--gold)', fontSize: 16, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
+              style={{ width: '100%', maxWidth: 70, height: 40, background: 'var(--panel)', border: '0.5px solid var(--border-strong)', borderRadius: 8, color: 'var(--gold)', fontSize: 16, fontWeight: 700, textAlign: 'center', fontFamily: 'var(--serif)' }}
               value={v}
               onChange={e => onPct(pos, e.target.value)}
             />
@@ -815,7 +815,7 @@ function PlayerNameField({ style, placeholder, value, suggestions, onChange, onP
       {open && filtered.length > 0 && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
-          background: '#101a30', border: '1px solid rgba(255,255,255,0.12)',
+          background: 'var(--sheet-bg)', border: '1px solid var(--border-strong)',
           borderRadius: 10, marginTop: 4, maxHeight: 180, overflowY: 'auto',
           boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
         }}>
