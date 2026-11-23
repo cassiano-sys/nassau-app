@@ -1,4 +1,4 @@
-        import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   HOLES, FRONT, BACK,
@@ -75,6 +75,13 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
       : players.map(() => Array(18).fill(null)))
   const [activeHole, setActiveHole] = useState(() => initialDraft?.activeHole ?? 0)
   const [tab, setTab]           = useState(readOnly ? 'results' : 'card') // card | results
+  // Marca, por jogador/buraco, se o valor atual é um par pré-preenchido ao
+  // avançar de buraco e ainda não conferido pelo jogador, ou um score que
+  // ele de fato lançou/editou — só visual (contorno tracejado, ver CSS
+  // .score-input-set.auto-par), não entra em nenhum cálculo. Não persiste
+  // entre sessões: ao retomar um rascunho, scores já salvos entram como
+  // "confirmados" — é um detalhe de exibição, não precisa ser exato.
+  const [autoPar, setAutoPar] = useState(() => players.map(() => Array(18).fill(false)))
 
   // Salva a rodada em andamento no aparelho a cada score lançado (e ao trocar
   // de buraco), pra não perder nada se o celular fechar o app.
@@ -109,11 +116,37 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
 
   const lowestHcp = Math.min(...players.map(p => p.handicap))
 
-  const upd = (pi, i, v) => setScores(prev => {
-    const n = prev.map(r => [...r])
-    n[pi][i] = v === '' ? null : Number(v)
-    return n
-  })
+  const upd = (pi, i, v) => {
+    setScores(prev => {
+      const n = prev.map(r => [...r])
+      n[pi][i] = v === '' ? null : Number(v)
+      return n
+    })
+    // Qualquer edição explícita (+/−, digitar, tocar no "par" fantasma)
+    // confirma o valor — some o estado "auto" daquela célula.
+    setAutoPar(prev => {
+      const n = prev.map(r => [...r])
+      n[pi][i] = false
+      return n
+    })
+  }
+
+  // Pré-preenche o par pra quem ainda não lançou nada neste buraco, ao
+  // ENTRAR nele (seja por "Próximo", "Anterior" ou tocando o número do
+  // buraco) — nunca na largada da rodada inteira, pra uma rodada abandonada
+  // no meio continuar claramente incompleta nos buracos seguintes (em vez
+  // de parecer "fechada" com os 18 marcados). O valor fica marcado como
+  // "auto" até o jogador alterá-lo, pra dar pro grupo a chance de notar
+  // antes de fechar a aposta — ver o contorno tracejado em .auto-par.
+  useEffect(() => {
+    const toFill = players.map((_, pi) => scores[pi][activeHole] === null)
+    if (!toFill.some(Boolean)) return
+    setScores(prev => prev.map((row, pi) =>
+      toFill[pi] ? row.map((v, i) => i === activeHole ? par[activeHole] : v) : row))
+    setAutoPar(prev => prev.map((row, pi) =>
+      toFill[pi] ? row.map((v, i) => i === activeHole ? true : v) : row))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao trocar de buraco, de propósito
+  }, [activeHole])
 
   // Match Play e Catraca reaproveitam a mesma engine do Nassau (calcIndiv/
   // calcTeam) — só muda o pressAt: Infinity no Match Play (nenhum press
@@ -632,6 +665,8 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
                       ? diff <= -2 ? 'eagle' : diff === -1 ? 'birdie'
                       : diff === 1 ? 'bogey' : diff >= 2 ? 'double' : ''
                       : ''
+                    // Par pré-preenchido ao avançar de buraco, ainda não conferido
+                    const isAuto = isSet && autoPar[pi]?.[activeHole]
                     return (
                       <div key={pi} style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -654,11 +689,11 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
                             {isSet ? (
                               <>
                                 <input type="number" min="1" max="20"
-                                  className={`score-input-set ${scoreColorCls}`}
+                                  className={`score-input-set ${scoreColorCls}${isAuto ? ' auto-par' : ''}`}
                                   value={g}
                                   onChange={e => upd(pi, activeHole, e.target.value === '' ? null : e.target.value)}
                                 />
-                                <span className={`pardiff ${diffCls}`}>{diffLabel}</span>
+                                <span className={`pardiff ${diffCls}`}>{isAuto ? 'par' : diffLabel}</span>
                               </>
                             ) : (
                               <div className="score-unset" onClick={() => upd(pi, activeHole, holePar)}>
