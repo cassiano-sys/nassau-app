@@ -248,7 +248,10 @@ export default function ScorecardScreen({ config, onFinish, onBack, session, ini
     } else if (format === 'stableford' && stableResult) {
       stableResult.money.forEach((v, i) => { m[i] = v })
     } else if (format === 'medal' && medalResult) {
-      medalResult.money.forEach((v, i) => { m[i] = v })
+      // Pote ÷ nº de vencedores empatados pode dar dízima (ex.: pote 40 entre
+      // 3 empatados = 13,333...) — arredonda pra centavos, igual já era feito
+      // pro Sindicato, senão esse resíduo de ponto flutuante ia pro banco.
+      medalResult.money.forEach((v, i) => { m[i] = Math.round(v * 100) / 100 })
     } else if (format === 'sindicato' && sindResult) {
       // Pote ÷ 3 pode dar dízima — arredonda pra centavos.
       sindResult.money.forEach((v, i) => { m[i] = Math.round(v * 100) / 100 })
