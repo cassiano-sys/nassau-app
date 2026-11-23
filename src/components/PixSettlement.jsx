@@ -149,10 +149,10 @@ export default function PixSettlement({ players, meIndex, description }) {
       {transfers.map((t, ti) => {
         const pix = pixOf(t.to)
         return (
-          <div key={ti} style={{ padding: '10px 0', borderTop: ti ? '0.5px solid rgba(255,255,255,0.08)' : 'none' }}>
+          <div key={ti} style={{ padding: '10px 0', borderTop: ti ? '0.5px solid var(--border-strong)' : 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <div style={{ fontSize: 13, color: 'var(--cream)', lineHeight: 1.4 }}>
-                <strong style={{ color: '#f07a7a' }}>{players[t.from].name}</strong>
+                <strong style={{ color: 'var(--red)' }}>{players[t.from].name}</strong>
                 <span style={{ color: 'var(--muted2)' }}> paga a </span>
                 <strong style={{ color: 'var(--green2, #5dba7a)' }}>{players[t.to].name}</strong>
               </div>
@@ -167,8 +167,8 @@ export default function PixSettlement({ players, meIndex, description }) {
                 </div>
                 <button type="button" aria-label="Editar valor" onClick={() => setEditAmt(editAmt === ti ? null : ti)}
                   style={{ width: 30, height: 30, borderRadius: 8, cursor: 'pointer', flexShrink: 0,
-                    background: editAmt === ti ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.06)',
-                    border: '0.5px solid rgba(255,255,255,0.14)', color: 'var(--gold)', fontSize: 14 }}>
+                    background: editAmt === ti ? 'rgba(201,168,76,0.18)' : 'var(--panel-weak)',
+                    border: '0.5px solid var(--border-strong)', color: 'var(--gold)', fontSize: 14 }}>
                   ✎
                 </button>
               </div>
@@ -244,9 +244,9 @@ function smallBtn(primary) {
   return {
     flex: 1, padding: '8px 6px', borderRadius: 8, cursor: 'pointer',
     fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 700,
-    background: primary ? 'var(--gold)' : 'rgba(255,255,255,0.06)',
+    background: primary ? 'var(--gold)' : 'var(--panel-weak)',
     color: primary ? '#0a140c' : 'var(--cream)',
-    border: `0.5px solid ${primary ? 'var(--gold)' : 'rgba(255,255,255,0.14)'}`,
+    border: `0.5px solid ${primary ? 'var(--gold)' : 'var(--border-strong)'}`,
   }
 }
 
@@ -260,11 +260,11 @@ function PixQrModal({ payer, receiver, pix, amount, original, payload, onCopy, c
 
   return (
     <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.75)',
+      position: 'fixed', inset: 0, zIndex: 100, background: 'var(--overlay-scrim)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: '#101a30', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 16,
+        background: 'var(--sheet-bg)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 16,
         padding: 20, width: '100%', maxWidth: 340, textAlign: 'center',
       }}>
         <div style={{ fontSize: 12, color: 'var(--muted2)' }}>{payer} paga a</div>
@@ -314,7 +314,7 @@ function AmountEditor({ current, original, onApply, onReset, onCancel }) {
   }
 
   return (
-    <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'var(--panel)', border: '0.5px solid var(--border-strong)' }}>
       <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 8 }}>
         Ajustar valor <span style={{ color: 'var(--muted2)', fontWeight: 400 }}>· calculado: {fmtReais(original)}</span>
       </div>
@@ -324,7 +324,7 @@ function AmountEditor({ current, original, onApply, onReset, onCancel }) {
           onChange={e => { setRaw(e.target.value); setError('') }}
           onKeyDown={e => { if (e.key === 'Enter') apply() }}
           placeholder="0,00"
-          style={{ flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)',
+          style={{ flex: 1, minWidth: 0, background: 'var(--panel)', border: '0.5px solid var(--border-strong)',
             borderRadius: 8, color: 'var(--gold)', fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 700, padding: '7px 10px' }}/>
         <button type="button" style={{ ...smallBtn(true), flex: '0 0 auto', padding: '9px 14px' }} onClick={apply}>OK</button>
       </div>
@@ -355,7 +355,7 @@ export function PixKeyForm({ title, initialType = 'phone', initialKey = '', onSa
   }
 
   return (
-    <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '0.5px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: 'var(--panel)', border: '0.5px solid var(--border-strong)' }}>
       {title && <div style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 700, marginBottom: 8 }}>{title}</div>}
       <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
         {PIX_TYPES.map(t => (
@@ -373,7 +373,7 @@ export function PixKeyForm({ title, initialType = 'phone', initialKey = '', onSa
         inputMode={type === 'cpf' || type === 'phone' ? 'numeric' : type === 'email' ? 'email' : 'text'}
         autoCapitalize="none" autoCorrect="off"
         style={{
-          width: '100%', background: 'rgba(0,0,0,0.3)', border: '0.5px solid rgba(255,255,255,0.12)',
+          width: '100%', background: 'var(--panel)', border: '0.5px solid var(--border-strong)',
           borderRadius: 8, color: 'var(--cream)', fontFamily: 'var(--sans)', fontSize: 14, padding: '9px 10px',
         }}
       />
