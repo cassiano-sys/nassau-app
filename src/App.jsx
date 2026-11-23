@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import './lib/theme' // aplica o tema salvo (claro por padrão) antes de montar — evita "flash" do tema errado
 import { supabase } from './lib/supabase'
 import AuthScreen          from './components/AuthScreen'
 import ResetPasswordScreen from './components/ResetPasswordScreen'
@@ -8,6 +9,7 @@ import ScorecardScreen     from './components/ScorecardScreen'
 import PresentationScreen  from './components/PresentationScreen'
 import { HistoryScreen, RankingScreen, ProfileScreen } from './components/HistoryScreen'
 import BugReportButton     from './components/BugReportButton'
+import ThemeToggle         from './components/ThemeToggle'
 import { loadDraft }       from './lib/draft'
 import './lib/install' // captura o convite de instalação do Android o quanto antes
 import { captureInviteFromUrl, pendingInvite, clearPendingInvite, acceptInvite, syncProfile } from './lib/friends'
@@ -80,7 +82,12 @@ export default function App() {
 
   if (loading) return <Splash />
   if (passwordRecovery) return <ResetPasswordScreen onDone={() => setPasswordRecovery(false)}/>
-  if (!session) return <AuthScreen onAuth={setSession} />
+  if (!session) return (
+    <>
+      <AuthScreen onAuth={setSession} />
+      <ThemeToggle />
+    </>
+  )
 
   const nav = (s) => setScreen(s)
 
@@ -99,30 +106,35 @@ export default function App() {
   else if (screen === 'profile')      content = <ProfileScreen      onBack={() => nav('home')} session={session} onSignOut={() => { setSession(null); nav('home') }}/>
   else                                 content = <HomeScreen nav={nav} session={session} onResume={resume} notice={notice} onDismissNotice={() => setNotice(null)}/>
 
-  // Botão flutuante de "relatar problema" — aparece em toda tela logada,
-  // menos na Apresentação (tela em tela cheia, sem distrações, no fim da
-  // rodada de premiação).
-  const showBugButton = screen !== 'presentation'
+  // Botões flutuantes de "relatar problema" e de alternância de tema —
+  // aparecem em toda tela logada, menos na Apresentação (tela em tela
+  // cheia, sem distrações, no fim da rodada de premiação).
+  const showFloatingButtons = screen !== 'presentation'
 
   return (
     <>
       {content}
-      {showBugButton && <BugReportButton session={session} screen={screen}/>}
+      {showFloatingButtons && <BugReportButton session={session} screen={screen}/>}
+      {showFloatingButtons && <ThemeToggle />}
     </>
   )
 }
 
 function Splash() {
+  // Usa as variáveis de tema (não cores fixas) porque o tema salvo já foi
+  // aplicado no <html> pelo import de './lib/theme' no topo do arquivo,
+  // antes deste componente montar — assim a Splash já nasce na cor certa,
+  // sem piscar escuro e trocar pra claro (ou vice-versa) um instante depois.
   return (
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-      minHeight:'100vh', background:'#0d1a0f', color:'#c9a84c',
+      minHeight:'100vh', background:'var(--bg)', color:'var(--gold)',
       fontFamily:"'Cormorant Garamond', Georgia, serif" }}>
       <img src="/mascot/retrato.jpg" alt="" style={{
         width: 96, height: 96, borderRadius: '50%', objectFit: 'cover',
-        border: '2px solid #c9a84c', marginBottom: 18,
+        border: '2px solid var(--gold)', marginBottom: 18,
         boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
       }}/>
-      <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4 }}>Caddie<span style={{ color: '#c9a84c' }}>Stakes</span></div>
+      <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4, color: 'var(--cream)' }}>Caddie<span style={{ color: 'var(--gold)' }}>Stakes</span></div>
     </div>
   )
 }
