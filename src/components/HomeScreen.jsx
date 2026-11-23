@@ -235,7 +235,7 @@ export default function HomeScreen({ nav, session, onResume, notice, onDismissNo
                       <div key={i} className="hist-player">
                         <span style={{
                           fontWeight: firstNameLower(p.player_name) === firstName ? 700 : 400,
-                          color: firstNameLower(p.player_name) === firstName ? 'var(--gold)' : 'rgba(255,255,255,0.6)',
+                          color: firstNameLower(p.player_name) === firstName ? 'var(--gold)' : 'var(--text-dim)',
                           fontSize: 13,
                         }}>
                           {p.player_name}
